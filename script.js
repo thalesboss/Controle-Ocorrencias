@@ -119,6 +119,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     pushRemote: function(table, data) {
       if (!this.url || !this.key) return;
+      if (!Array.isArray(data) || data.length === 0) return;
       try {
         var endpoint = this.url.replace(/\/$/, '') + '/rest/v1/' + table;
         fetch(endpoint, {
@@ -151,13 +152,13 @@ document.addEventListener('DOMContentLoaded', function () {
         })
         .then(function(res) { return res.ok ? res.json() : null; })
         .then(function(remoteData) {
-          if (Array.isArray(remoteData) && remoteData.length > 0) {
+          if (Array.isArray(remoteData)) {
             var clean = remoteData.map(sanitizeOcorrencia).filter(Boolean);
-            if (clean.length > 0) {
-              ocorrencias = clean;
-              save(ocorrencias);
-              renderAll();
-            }
+            ocorrencias = clean;
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(ocorrencias));
+            } catch(e) {}
+            if (typeof renderAll === 'function') renderAll();
           }
         })
         .catch(function(err) {
@@ -173,9 +174,11 @@ document.addEventListener('DOMContentLoaded', function () {
         })
         .then(function(res) { return res.ok ? res.json() : null; })
         .then(function(remoteHist) {
-          if (Array.isArray(remoteHist) && remoteHist.length > 0) {
+          if (Array.isArray(remoteHist)) {
             historicoSeedData = remoteHist;
-            saveHistorico(historicoSeedData);
+            try {
+              localStorage.setItem(HISTORICO_STORAGE_KEY, JSON.stringify(historicoSeedData));
+            } catch(e) {}
             if (typeof renderHistorico === 'function') renderHistorico();
           }
         })
@@ -233,6 +236,9 @@ document.addEventListener('DOMContentLoaded', function () {
   function save(list) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+      if (typeof DBService !== 'undefined' && DBService && typeof DBService.pushRemote === 'function') {
+        DBService.pushRemote('ocorrencias', list);
+      }
     } catch(e) {
       console.warn('Erro ao salvar no localStorage:', e);
     }
@@ -446,11 +452,17 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function saveHistorico(list) {
-    localStorage.setItem(HISTORICO_STORAGE_KEY, JSON.stringify(list));
+    try {
+      localStorage.setItem(HISTORICO_STORAGE_KEY, JSON.stringify(list));
+      if (typeof DBService !== 'undefined' && DBService && typeof DBService.pushRemote === 'function') {
+        DBService.pushRemote('historico', list);
+      }
+    } catch(e) {
+      console.warn('Erro ao salvar historico:', e);
+    }
   }
 
   var historicoSeedData = loadHistorico();
-  saveHistorico(historicoSeedData);
 
   var historicoFiltroCategoria = 'todos';
   var itemHistoricoSelecionado = null;
@@ -2617,6 +2629,19 @@ document.addEventListener('DOMContentLoaded', function () {
      FLUXO DE INICIALIZAÇÃO E IDENTIFICAÇÃO DO OPERADOR
   ═══════════════════════════════════════════ */
   DBService.syncRemote();
+
+  // Sincronização periódica em tempo real (a cada 5 segundos) e ao focar na janela
+  setInterval(function() {
+    if (typeof DBService !== 'undefined' && DBService && typeof DBService.syncRemote === 'function') {
+      DBService.syncRemote();
+    }
+  }, 5000);
+
+  window.addEventListener('focus', function() {
+    if (typeof DBService !== 'undefined' && DBService && typeof DBService.syncRemote === 'function') {
+      DBService.syncRemote();
+    }
+  });
 
   var savedUserName = localStorage.getItem(USER_NAME_STORAGE_KEY);
   if (!savedUserName || !savedUserName.trim()) {
