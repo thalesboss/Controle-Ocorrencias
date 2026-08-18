@@ -146,8 +146,8 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!this.url || !this.key) return;
       var self = this;
       try {
-        // 1. Sincroniza Ocorrências em tempo real (cache-busting)
-        var urlOc = self.url.replace(/\/$/, '') + '/rest/v1/ocorrencias?select=*&_t=' + Date.now();
+        // 1. Sincroniza Ocorrências em tempo real (cache-busting + ordenação decrescente)
+        var urlOc = self.url.replace(/\/$/, '') + '/rest/v1/ocorrencias?select=*&order=criado.desc&_t=' + Date.now();
         fetch(urlOc, {
           headers: {
             'apikey': self.key,
@@ -161,15 +161,12 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(function(remoteData) {
           if (Array.isArray(remoteData)) {
             var clean = remoteData.map(sanitizeOcorrencia).filter(Boolean);
-            var prevJson = JSON.stringify(ocorrencias);
-            var nextJson = JSON.stringify(clean);
-            if (prevJson !== nextJson) {
-              ocorrencias = clean;
-              try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(ocorrencias));
-              } catch(e) {}
-              if (typeof renderAll === 'function') renderAll();
-            }
+            clean.sort(function(a, b) { return (b.criado || 0) - (a.criado || 0); });
+            ocorrencias = clean;
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(ocorrencias));
+            } catch(e) {}
+            if (typeof renderAll === 'function') renderAll();
           }
         })
         .catch(function(err) {
@@ -177,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         // 2. Sincroniza Histórico em tempo real (cache-busting)
-        var urlHist = self.url.replace(/\/$/, '') + '/rest/v1/historico?select=*&_t=' + Date.now();
+        var urlHist = self.url.replace(/\/$/, '') + '/rest/v1/historico?select=*&order=dataCriacao.desc&_t=' + Date.now();
         fetch(urlHist, {
           headers: {
             'apikey': self.key,
@@ -190,15 +187,11 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(function(res) { return res.ok ? res.json() : null; })
         .then(function(remoteHist) {
           if (Array.isArray(remoteHist)) {
-            var prevHistJson = JSON.stringify(historicoSeedData);
-            var nextHistJson = JSON.stringify(remoteHist);
-            if (prevHistJson !== nextHistJson) {
-              historicoSeedData = remoteHist;
-              try {
-                localStorage.setItem(HISTORICO_STORAGE_KEY, JSON.stringify(historicoSeedData));
-              } catch(e) {}
-              if (typeof renderHistorico === 'function') renderHistorico();
-            }
+            historicoSeedData = remoteHist;
+            try {
+              localStorage.setItem(HISTORICO_STORAGE_KEY, JSON.stringify(historicoSeedData));
+            } catch(e) {}
+            if (typeof renderHistorico === 'function') renderHistorico();
           }
         })
         .catch(function(err) {
@@ -217,6 +210,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function sanitizeOcorrencia(o) {
     if (!o || typeof o !== 'object') return null;
+    var userAtual = getUsuarioAtual();
+    var isMine = !!o.mine;
+    if (o.resp && (o.resp === userAtual || o.resp.indexOf(userAtual) !== -1 || o.resp.indexOf('Você') !== -1)) {
+      isMine = true;
+    }
     return {
       id: o.id || ('oc_' + Date.now()),
       titulo: o.titulo || 'Ocorrência sem título',
@@ -226,7 +224,7 @@ document.addEventListener('DOMContentLoaded', function () {
       local: o.local || '',
       prazo: o.prazo || '',
       desc: o.desc || '',
-      mine: !!o.mine,
+      mine: isMine,
       tags: Array.isArray(o.tags) ? o.tags : [],
       status: o.status || 'aberta',
       criado: o.criado || Date.now(),
