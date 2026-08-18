@@ -145,8 +145,8 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!this.url || !this.key) return;
       var self = this;
       try {
-        // 1. Sincroniza Ocorrências em tempo real (cache-busting + ordenação decrescente)
-        var urlOc = self.url.replace(/\/$/, '') + '/rest/v1/ocorrencias?select=*&order=criado.desc&_t=' + Date.now();
+        // 1. Sincroniza Ocorrências em tempo real (Supabase REST)
+        var urlOc = self.url.replace(/\/$/, '') + '/rest/v1/ocorrencias?select=*&order=criado.desc';
         fetch(urlOc, {
           headers: {
             'apikey': self.key,
@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', function () {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache'
           },
-          cache: 'no-store'
+          cache: 'no-cache'
         })
         .then(function(res) { return res.ok ? res.json() : null; })
         .then(function(remoteData) {
@@ -162,9 +162,6 @@ document.addEventListener('DOMContentLoaded', function () {
             var clean = remoteData.map(sanitizeOcorrencia).filter(Boolean);
             clean.sort(function(a, b) { return (b.criado || 0) - (a.criado || 0); });
             ocorrencias = clean;
-            try {
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(ocorrencias));
-            } catch(e) {}
             if (typeof renderAll === 'function') renderAll();
           }
         })
@@ -172,8 +169,8 @@ document.addEventListener('DOMContentLoaded', function () {
           console.warn('[DBService Cloud Sync] Offline ou conectando ao Supabase...', err);
         });
 
-        // 2. Sincroniza Histórico em tempo real (cache-busting)
-        var urlHist = self.url.replace(/\/$/, '') + '/rest/v1/historico?select=*&order=dataCriacao.desc&_t=' + Date.now();
+        // 2. Sincroniza Histórico em tempo real (Supabase REST)
+        var urlHist = self.url.replace(/\/$/, '') + '/rest/v1/historico?select=*&order=dataCriacao.desc';
         fetch(urlHist, {
           headers: {
             'apikey': self.key,
@@ -181,15 +178,12 @@ document.addEventListener('DOMContentLoaded', function () {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache'
           },
-          cache: 'no-store'
+          cache: 'no-cache'
         })
         .then(function(res) { return res.ok ? res.json() : null; })
         .then(function(remoteHist) {
           if (Array.isArray(remoteHist)) {
             historicoSeedData = remoteHist;
-            try {
-              localStorage.setItem(HISTORICO_STORAGE_KEY, JSON.stringify(historicoSeedData));
-            } catch(e) {}
             if (typeof renderHistorico === 'function') renderHistorico();
           }
         })
@@ -2473,6 +2467,8 @@ document.addEventListener('DOMContentLoaded', function () {
     syncAnoOrcamentoUI();
     var tbody = document.getElementById('orc-itens-tbody');
     if (!tbody) return;
+
+    if (!Array.isArray(orcamentoSeedData)) orcamentoSeedData = [];
 
     var totalGeral = 0;
     var totalCapex = 0;
