@@ -42,18 +42,17 @@ document.addEventListener('DOMContentLoaded', function () {
      BANCO DE DADOS & SERVIÇO DE ARMAZENAMENTO (DB ADAPTER SERVICE)
      Interface modular para transição transparente entre LocalStorage e Backend API (Supabase/Firebase/REST)
   ═══════════════════════════════════════════ */
-  /* Purge e limpeza completa de testes antigos armazenados no navegador */
-  var RESET_PROD_KEY = 'tv_reset_clean_prod_v1';
-  if (!localStorage.getItem(RESET_PROD_KEY)) {
+  /* Purge e limpeza de dados antigos: localStorage mantem APENAS o nome do operador */
+  try {
+    localStorage.removeItem('tv_ocorrencias_prod');
+    localStorage.removeItem('tv_historico_prod');
     localStorage.removeItem('tv_ocorrencias_v1');
     localStorage.removeItem('tv_historico_v1');
-    localStorage.setItem(RESET_PROD_KEY, 'true');
-  }
+    localStorage.removeItem('tv_reset_clean_prod_v1');
+  } catch(e) {}
 
-  var STORAGE_KEY           = 'tv_ocorrencias_prod';
-  var HISTORICO_STORAGE_KEY = 'tv_historico_prod';
-  var PHOTO_STORAGE_KEY     = 'tv_user_photo_v1';
   var USER_NAME_STORAGE_KEY = 'tv_user_name_v1';
+  var PHOTO_STORAGE_KEY     = 'tv_user_photo_v1';
 
   function getUsuarioAtual() {
     var stored = localStorage.getItem(USER_NAME_STORAGE_KEY);
@@ -234,35 +233,17 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function load() {
-    try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return [];
-      var data = JSON.parse(raw);
-      if (Array.isArray(data)) {
-        var realOnly = data.filter(function(o) {
-          return o && !String(o.id || '').startsWith('s');
-        });
-        return realOnly.map(sanitizeOcorrencia).filter(Boolean);
-      }
-      return [];
-    } catch(e) {
-      return [];
-    }
+    return ocorrencias || [];
   }
 
   function save(list) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-      if (typeof DBService !== 'undefined' && DBService && typeof DBService.pushRemote === 'function') {
-        DBService.pushRemote('ocorrencias', list);
-      }
-    } catch(e) {
-      console.warn('Erro ao salvar no localStorage:', e);
+    ocorrencias = list || [];
+    if (typeof DBService !== 'undefined' && DBService && typeof DBService.pushRemote === 'function') {
+      DBService.pushRemote('ocorrencias', ocorrencias);
     }
   }
 
-  var ocorrencias = load();
-  save(ocorrencias);
+  var ocorrencias = [];
 
   function getAbertas()    { return ocorrencias.filter(function(o){ return o && o.status === 'aberta'; }); }
   function getResolvidas() { return ocorrencias.filter(function(o){ return o && o.status === 'resolvida'; }); }
@@ -454,32 +435,17 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function loadHistorico() {
-    try {
-      var data = JSON.parse(localStorage.getItem(HISTORICO_STORAGE_KEY));
-      if (Array.isArray(data)) {
-        var realOnly = data.filter(function(h) {
-          return h && h.id !== 'h1' && h.id !== 'h2' && h.id !== 'h3';
-        });
-        return realOnly;
-      }
-      return [];
-    } catch(e) {
-      return [];
-    }
+    return historicoSeedData || [];
   }
 
   function saveHistorico(list) {
-    try {
-      localStorage.setItem(HISTORICO_STORAGE_KEY, JSON.stringify(list));
-      if (typeof DBService !== 'undefined' && DBService && typeof DBService.pushRemote === 'function') {
-        DBService.pushRemote('historico', list);
-      }
-    } catch(e) {
-      console.warn('Erro ao salvar historico:', e);
+    historicoSeedData = list || [];
+    if (typeof DBService !== 'undefined' && DBService && typeof DBService.pushRemote === 'function') {
+      DBService.pushRemote('historico', historicoSeedData);
     }
   }
 
-  var historicoSeedData = loadHistorico();
+  var historicoSeedData = [];
 
   var historicoFiltroCategoria = 'todos';
   var itemHistoricoSelecionado = null;
@@ -2647,12 +2613,12 @@ document.addEventListener('DOMContentLoaded', function () {
   ═══════════════════════════════════════════ */
   DBService.syncRemote();
 
-  // Sincronização ultra-rápida em tempo real (a cada 2.5 segundos) e imediata ao focar na janela
+  // Sincronização ultra-rápida em tempo real (a cada 2 segundos) e imediata ao focar na janela
   setInterval(function() {
     if (typeof DBService !== 'undefined' && DBService && typeof DBService.syncRemote === 'function') {
       DBService.syncRemote();
     }
-  }, 2500);
+  }, 2000);
 
   window.addEventListener('focus', function() {
     if (typeof DBService !== 'undefined' && DBService && typeof DBService.syncRemote === 'function') {
