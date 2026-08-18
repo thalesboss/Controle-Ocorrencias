@@ -1,0 +1,1922 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TV Integração — Sistema de Relatórios</title>
+  <link rel="stylesheet" href="style.css"/>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    .lucide { display:inline-block; vertical-align:middle; flex-shrink:0; }
+    .s-btn .lucide { color: var(--muted); }
+    .s-btn:hover:not(.active) .lucide { color: var(--txt2); }
+    .s-btn.active .lucide { color: #fff; }
+
+    .res-status-group { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:4px; }
+    .res-pill {
+      flex:1; min-width:120px; border:1.5px solid var(--border);
+      border-radius:var(--r-lg); padding:10px 12px; cursor:pointer;
+      text-align:center; transition:all .12s; background:var(--bg);
+      user-select:none;
+    }
+    .res-pill:hover { border-color:var(--blue); background:var(--blue-lt); }
+    .res-pill.selected-ok   { border-color:var(--green-dk); background:var(--green-lt); color:var(--green-dk); font-weight:600; }
+    .res-pill.selected-warn { border-color:var(--yellow);   background:var(--yellow-lt); color:var(--yellow);   font-weight:600; }
+    .res-pill.selected-fwd  { border-color:var(--indigo);   background:var(--indigo-lt); color:var(--indigo);   font-weight:600; }
+    .res-pill-label { font-size:12.5px; font-weight:500; color:inherit; display:block; }
+    .res-pill-sub   { font-size:10.5px; color:var(--muted); margin-top:2px; }
+    .res-pill.selected-ok   .res-pill-sub,
+    .res-pill.selected-warn .res-pill-sub,
+    .res-pill.selected-fwd  .res-pill-sub { opacity:.7; color:inherit; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     POPUP: IDENTIFICAÇÃO DO OPERADOR (PRIMEIRO ACESSO)
+═══════════════════════════════════════ -->
+<div class="overlay" id="popup-identificacao-operador" hidden role="dialog" aria-modal="true" aria-labelledby="ident-title">
+  <div class="modal" style="max-width: 440px;">
+    <div class="modal-header">
+      <div class="modal-icon icon-blue">
+        <i data-lucide="user-check" style="width:18px;height:18px;color:#fff;stroke-width:2;"></i>
+      </div>
+      <div>
+        <h2 id="ident-title">Identificação do Operador</h2>
+        <p>Configuração do seu perfil de trabalho</p>
+      </div>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+      <p style="font-size:12.5px;color:var(--txt2);line-height:1.5;">
+        Informe seu nome completo ou como deseja ser identificado nos registros, relatórios e ocorrências deste computador.
+      </p>
+      <div class="frow">
+        <label for="ident-operador-nome" style="font-weight:600;font-size:12.5px;color:var(--txt);">Nome Completo *</label>
+        <input type="text" id="ident-operador-nome" placeholder="Ex: Carlos Silva" style="width:100%;font-size:13px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);" />
+      </div>
+      <div class="frow">
+        <label style="font-weight:600;font-size:12.5px;color:var(--txt);">E-mail Padrão (Ambiente de Teste)</label>
+        <input type="email" value="teste@teste.com" disabled style="width:100%;font-size:13px;padding:9px 12px;border:1px solid var(--border-lt);border-radius:var(--r-md);background:#F1F5F9;color:var(--muted);cursor:not-allowed;" />
+        <span style="font-size:11px;color:var(--muted);margin-top:2px;">Configurado automaticamente para o ambiente operacional.</span>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;">
+      <button class="btn btn-primary" type="button" onclick="confirmarIdentificacaoOperador()" style="padding:8px 20px;font-size:13px;">Salvar e Continuar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     POPUP: ENTRADA DO TURNO
+═══════════════════════════════════════ -->
+<div class="overlay" id="popup-entrada" hidden role="dialog" aria-modal="true" aria-labelledby="ent-title">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-icon icon-blue">
+        <i data-lucide="clipboard" style="width:17px;height:17px;color:#fff;stroke-width:2;"></i>
+      </div>
+      <div>
+        <h2 id="ent-title">Orientações de Entrada</h2>
+        <p>Sessão de trabalho &nbsp;·&nbsp; Leia antes de iniciar</p>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="info-group">
+        <div class="info-label">Pendências Recentes do Turno</div>
+        <div id="popup-entrada-pendencias">
+          <!-- preenchido dinamicamente via JS -->
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <label class="accept" style="cursor:pointer;">
+        <input type="checkbox" id="chk-entrada"/>
+        <span>Li todas as orientações e estou ciente das pendências.</span>
+      </label>
+      <button class="btn btn-primary" id="btn-iniciar" type="button" onclick="iniciarSessao()">Iniciar Sessão</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     POPUP: ENCERRAMENTO DO TURNO
+═══════════════════════════════════════ -->
+<div class="overlay" id="popup-logout" hidden role="dialog" aria-modal="true" aria-labelledby="out-title">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-icon icon-purple">
+        <i data-lucide="moon" style="width:17px;height:17px;color:#fff;stroke-width:2;"></i>
+      </div>
+      <div>
+        <h2 id="out-title">Encerramento de Turno</h2>
+        <p>Confirme as ocorrências antes de deslogar.</p>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="info-label" style="margin-bottom:7px;">Checklist das Ocorrências do Turno</div>
+      <div id="popup-logout-checklist">
+        <!-- preenchido dinamicamente via JS -->
+      </div>
+      <div class="obs-field">
+        <label for="obs-logout">Justificativa para ocorrências não concluídas</label>
+        <textarea id="obs-logout" placeholder="Descreva o motivo pelo qual a(s) ocorrência(s) não foram concluídas ou se elas ainda não foram resolvidas..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;gap:8px;">
+      <button class="btn btn-ghost" onclick="fecharPopup('popup-logout')">Cancelar</button>
+      <button class="btn btn-danger">Enviar e Deslogar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     POPUP: NOVA OCORRÊNCIA
+═══════════════════════════════════════ -->
+<div class="overlay" id="popup-nova-oc" hidden role="dialog" aria-modal="true" aria-labelledby="nova-title">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-icon icon-green">
+        <i data-lucide="plus" style="width:17px;height:17px;color:#fff;stroke-width:2.5;"></i>
+      </div>
+      <div>
+        <h2 id="nova-title">Nova Ocorrência</h2>
+        <p>Preencha os campos obrigatórios para registrar.</p>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="frow">
+        <label for="nova-titulo">Título <span style="color:var(--red)">*</span></label>
+        <input id="nova-titulo" type="text" placeholder="Descreva brevemente a ocorrência..."/>
+      </div>
+      <div class="fg2">
+        <div class="frow">
+          <label for="nova-prio">Prioridade <span style="color:var(--red)">*</span></label>
+          <select id="nova-prio"><option value="Alta">Alta</option><option value="Média" selected>Média</option><option value="Baixa">Baixa</option></select>
+        </div>
+        <div class="frow">
+          <label for="nova-cat">Categoria <span style="color:var(--red)">*</span></label>
+          <select id="nova-cat">
+            <option>Telejornal / Transmissão ao Vivo</option>
+            <option>Programação</option>
+            <option>Rota de Transmissão</option>
+            <option>Equipamento</option>
+            <option>Infraestrutura</option>
+            <option>Outro</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg2">
+        <div class="frow">
+          <label for="nova-resp">Atribuir para</label>
+          <select id="nova-resp">
+            <option value="Todos do turno">Todos do turno</option>
+            <option value="Operador" id="opt-user-name">Operador (Você)</option>
+            <option value="Técnico de Turno">Técnico de Turno</option>
+            <option value="Supervisão">Supervisão</option>
+            <option value="Suporte de TI">Suporte de TI</option>
+          </select>
+        </div>
+        <div class="frow">
+          <label for="nova-local">Local <span class="opt-badge">Opcional</span></label>
+          <input id="nova-local" type="text" placeholder="Ex: Estúdio A, Sala de Edição..."/>
+        </div>
+      </div>
+      <div class="frow">
+        <label for="nova-prazo">Prazo <span class="opt-badge">Opcional</span></label>
+        <input id="nova-prazo" type="time" style="max-width:150px;"/>
+      </div>
+      <div class="frow">
+        <label for="nova-desc">Descrição detalhada <span style="color:var(--red)">*</span></label>
+        <textarea id="nova-desc" placeholder="Descreva a ocorrência em detalhes: o que aconteceu, onde, qual o impacto e as ações necessárias... (mínimo 50 caracteres)" style="min-height:84px;"></textarea>
+        <div id="nova-counter" class="char-count">Mínimo 50 caracteres</div>
+      </div>
+      <div class="frow">
+        <label>Anexar fotos ou vídeos <span class="opt-badge">Opcional</span></label>
+        <div class="upload-area" id="nova-upload-area" role="button" tabindex="0">
+          <input id="nova-arquivos" type="file" accept="image/*,video/*,.pdf,application/pdf" multiple onchange="handleFileSelect(this, 'nova-previews')"/>
+          <div class="u-ico"><i data-lucide="paperclip" style="width:22px;height:22px;color:var(--muted);stroke-width:1.5;"></i></div>
+          <p class="u-txt">Clique para selecionar fotos, vídeos ou PDFs</p>
+          <p class="u-sub">JPG, PNG, PDF, MP4, MOV — múltiplos arquivos permitidos com opção de remover</p>
+        </div>
+        <div id="nova-previews" class="upload-previews"></div>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;gap:8px;">
+      <button class="btn btn-ghost" onclick="fecharPopup('popup-nova-oc')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-criar">Criar Ocorrência</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     POPUP: RESOLVER OCORRÊNCIA
+═══════════════════════════════════════ -->
+<div class="overlay" id="popup-resolver" hidden role="dialog" aria-modal="true" aria-labelledby="resolver-title">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-icon" style="background:var(--green-dk);">
+        <i data-lucide="check-circle" style="width:17px;height:17px;color:#fff;stroke-width:2;"></i>
+      </div>
+      <div>
+        <h2 id="resolver-title">Registrar Resolução</h2>
+        <p id="resolver-titulo-oc" style="color:var(--txt2);font-size:12px;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></p>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="info-label" style="margin-bottom:9px;">Status da Resolução <span style="color:var(--red)">*</span></div>
+      <div class="res-status-group">
+        <div class="res-pill selected-ok" id="pill-ok" onclick="selecionarStatus('Resolvido')">
+          <span class="res-pill-label">Resolvido</span>
+          <span class="res-pill-sub">Problema solucionado</span>
+        </div>
+        <div class="res-pill" id="pill-parcial" onclick="selecionarStatus('Parcialmente resolvido')">
+          <span class="res-pill-label">Parcialmente resolvido</span>
+          <span class="res-pill-sub">Requer acompanhamento</span>
+        </div>
+        <div class="res-pill" id="pill-enc" onclick="selecionarStatus('Encaminhado')">
+          <span class="res-pill-label">Encaminhado</span>
+          <span class="res-pill-sub">Passado para outro setor</span>
+        </div>
+      </div>
+      <input type="hidden" id="resolver-status" value="Resolvido"/>
+      <div class="frow" style="margin-top:14px;">
+        <label for="resolver-desc">O que foi resolvido? <span style="color:var(--red)">*</span></label>
+        <textarea id="resolver-desc" placeholder="Descreva o que foi realizado para resolver ou encaminhar a ocorrência..." style="min-height:88px;"></textarea>
+        <div id="resolver-counter" class="char-count">Mínimo 10 caracteres</div>
+      </div>
+      <div class="frow">
+        <label>Comprovante / Evidência <span class="opt-badge">Opcional</span></label>
+        <div class="upload-area" id="resolver-upload-area" role="button" tabindex="0">
+          <input id="resolver-arquivos" type="file" accept="image/*,video/*,.pdf,application/pdf" multiple onchange="handleFileSelect(this, 'resolver-previews')"/>
+          <div class="u-ico"><i data-lucide="paperclip" style="width:22px;height:22px;color:var(--muted);stroke-width:1.5;"></i></div>
+          <p class="u-txt">Anexar foto, vídeo ou PDF como evidência</p>
+          <p class="u-sub">JPG, PNG, PDF, MP4, MOV</p>
+        </div>
+        <div id="resolver-previews" class="upload-previews"></div>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;gap:8px;">
+      <button class="btn btn-ghost" onclick="fecharPopup('popup-resolver')">Cancelar</button>
+      <button class="btn btn-success" id="btn-confirmar-resolver">Confirmar Resolução</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     POPUP: DETALHES DO HISTÓRICO
+═══════════════════════════════════════ -->
+<div class="overlay" id="popup-detalhes-historico" hidden role="dialog" aria-modal="true" aria-labelledby="hist-det-title">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-icon" id="hist-det-ico" style="background:var(--blue);">
+        <i data-lucide="file-text" style="width:17px;height:17px;color:#fff;stroke-width:2;"></i>
+      </div>
+      <div>
+        <h2 id="hist-det-title">Detalhes do Registro</h2>
+        <div id="hist-det-tags" style="display:flex;gap:5px;margin-top:3px;flex-wrap:wrap;"></div>
+      </div>
+    </div>
+    <div class="modal-body" id="hist-det-body" style="max-height:75vh;overflow-y:auto;">
+      <!-- preenchido por JS -->
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="fecharPopup('popup-detalhes-historico')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONTAINER FLUTUANTE DE TOAST NOTIFICATIONS (CANTO SUPERIOR DIREITO) -->
+<div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+<!-- ═══════════════════════════════════════
+     POPUP: CENTRAL DE NOTIFICAÇÕES
+═══════════════════════════════════════ -->
+<div class="overlay" id="popup-notificacoes" hidden role="dialog" aria-modal="true" aria-labelledby="notif-title">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-icon icon-blue">
+        <i data-lucide="bell" style="width:17px;height:17px;color:#fff;stroke-width:2;"></i>
+      </div>
+      <div>
+        <h2 id="notif-title">Central de Notificações</h2>
+        <p>Alertas em tempo real do sistema e turnos</p>
+      </div>
+    </div>
+    <div class="modal-body" id="notif-list-body" style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;">
+      <!-- preenchido por JS -->
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;gap:8px;">
+      <button class="btn btn-ghost" onclick="fecharPopup('popup-notificacoes')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     POPUP: GERAR RELATÓRIO POWER BI
+═══════════════════════════════════════ -->
+<div class="overlay" id="popup-gerar-powerbi" hidden role="dialog" aria-modal="true" aria-labelledby="pbi-title">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-icon icon-blue">
+        <i data-lucide="bar-chart-2" style="width:17px;height:17px;color:#fff;stroke-width:2;"></i>
+      </div>
+      <div>
+        <h2 id="pbi-title">Gerar Relatório Power BI</h2>
+        <p>Consolidação e exportação de métricas por período</p>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="frow">
+        <label for="pbi-periodo">Selecione o Período do Relatório <span style="color:var(--red)">*</span></label>
+        <select id="pbi-periodo" onchange="atualizarResumoPowerBI()">
+          <option value="semana">Última Semana (7 dias)</option>
+          <option value="mes" selected>Último Mês (30 dias)</option>
+          <option value="semestre">Últimos 6 Meses</option>
+          <option value="ano">Último 1 Ano</option>
+        </select>
+      </div>
+
+      <div id="pbi-preview-box" style="margin-top:14px;background:var(--blue-lt);border:1px solid #A4CDFE;border-radius:var(--r-md);padding:12px;font-size:12px;color:#0051B3;">
+        <strong id="pbi-preview-title">Consolidado: Último Mês (30 dias)</strong><br/>
+        <div id="pbi-preview-stats" style="margin-top:6px;line-height:1.6;">
+          Total Transmissões: <strong>419</strong> | Conformes: <strong style="color:var(--green)">419 (100%)</strong> | Não Conformes: <strong style="color:var(--red)">0 (0%)</strong>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;gap:8px;">
+      <button class="btn btn-ghost" onclick="fecharPopup('popup-gerar-powerbi')">Cancelar</button>
+      <button class="btn btn-primary" onclick="exportarRelatorioPowerBI()">Exportar Dados Power BI</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     POPUP: REGISTRAR OCORRÊNCIA NO DASHBOARD
+═══════════════════════════════════════ -->
+<div class="overlay" id="popup-nova-oc-dashboard" hidden role="dialog" aria-modal="true" aria-labelledby="oc-dash-title">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-icon icon-blue">
+        <i data-lucide="plus-circle" style="width:17px;height:17px;color:#fff;stroke-width:2;"></i>
+      </div>
+      <div>
+        <h2 id="oc-dash-title">Registrar Ocorrência no Dashboard</h2>
+        <p>Atualização direta dos gráficos e estatísticas deste painel</p>
+      </div>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="oc-dash-tipo-painel" value="telejornal" />
+      <div class="frow">
+        <label for="oc-dash-alvo">Selecione o Item Alvo <span style="color:var(--red)">*</span></label>
+        <select id="oc-dash-alvo">
+          <!-- preenchido por JS -->
+        </select>
+      </div>
+      <div class="frow">
+        <label for="oc-dash-status">Status da Transmissão / Equipamento <span style="color:var(--red)">*</span></label>
+        <select id="oc-dash-status">
+          <option value="nc">Não Conforme (Falha)</option>
+          <option value="canc">Cancelado</option>
+          <option value="conf">Conforme (Adicionar Transmissão OK)</option>
+        </select>
+      </div>
+      <div class="frow">
+        <label for="oc-dash-obs">Observações do Registro <span style="color:var(--red)">*</span></label>
+        <textarea id="oc-dash-obs" placeholder="Descreva a ocorrência que impactará este gráfico..." style="min-height:70px;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;gap:8px;">
+      <button class="btn btn-ghost" onclick="fecharPopup('popup-nova-oc-dashboard')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarOcDashboard()">Salvar no Dashboard</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     POPUP: DETALHES AMPLIADOS DA TRANSMISSÃO / EQUIPAMENTO
+═══════════════════════════════════════ -->
+<div class="overlay" id="popup-detalhes-transmissao" hidden role="dialog" aria-modal="true" aria-labelledby="det-trans-nome">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-icon icon-blue" id="det-trans-icon-box">
+        <i data-lucide="tv" id="det-trans-ico" style="width:18px;height:18px;color:#fff;stroke-width:2;"></i>
+      </div>
+      <div style="flex:1;">
+        <h2 id="det-trans-nome" style="font-size:15px;font-weight:700;color:var(--txt);margin:0;">INTEGRAÇÃO NOTÍCIA</h2>
+        <p id="det-trans-categoria" style="font-size:11.5px;color:var(--muted);margin:2px 0 0 0;">Telejornal · Painel de Telemetria e Transmissão</p>
+      </div>
+      <div id="det-trans-status-badge" class="tag tag-g" style="font-size:11px;padding:3px 10px;">● Operacional</div>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+      <!-- CARDS DE METRICAS CONSOLIDADAS -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+        <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:var(--r-md);padding:10px 12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.5px;">Conformes</div>
+          <div id="det-trans-conf" style="font-size:16px;font-weight:800;color:#15803D;margin-top:2px;">151 (99.3%)</div>
+        </div>
+        <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:var(--r-md);padding:10px 12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:#991B1B;text-transform:uppercase;letter-spacing:.5px;">Não Conformes</div>
+          <div id="det-trans-nc" style="font-size:16px;font-weight:800;color:#DC2626;margin-top:2px;">0 (0.0%)</div>
+        </div>
+        <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--r-md);padding:10px 12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:#92400E;text-transform:uppercase;letter-spacing:.5px;">Cancelados</div>
+          <div id="det-trans-canc" style="font-size:16px;font-weight:800;color:#D97706;margin-top:2px;">1 (0.7%)</div>
+        </div>
+      </div>
+
+      <!-- INFORMAÇÕES DETALHADAS DE TELEMETRIA -->
+      <div style="background:#F8F9FA;border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">
+          Especificações e Telemetria Operacional
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:12px;">
+          <div><span style="color:var(--muted);">Total de Transmissões:</span> <strong id="det-trans-total" style="color:var(--txt);">152</strong></div>
+          <div><span style="color:var(--muted);">Taxa de SLA / Eficiência:</span> <strong id="det-trans-sla" style="color:var(--green-dk);">99.3%</strong></div>
+          <div><span style="color:var(--muted);">Praça / Estúdio:</span> <strong id="det-trans-local" style="color:var(--txt);">Juiz de Fora (MG)</strong></div>
+          <div><span style="color:var(--muted);">Link de Sinal:</span> <strong id="det-trans-link" style="color:var(--txt);">Rede IP / 4K bonding</strong></div>
+          <div style="grid-column:1 / -1;"><span style="color:var(--muted);">Última Transmissão Registrada:</span> <strong id="det-trans-ultimo" style="color:var(--txt);">Hoje · Sinal Conforme</strong></div>
+        </div>
+      </div>
+
+      <!-- HISTÓRICO RECENTE DO ITEM -->
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">
+          Histórico Operacional & Ocorrências Recentes
+        </div>
+        <div id="det-trans-historico-lista" style="display:flex;flex-direction:column;gap:6px;max-height:130px;overflow-y:auto;">
+          <!-- Preenchido via script.js -->
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between;">
+      <button class="btn btn-sm" onclick="abrirModalOcItemDireto()" style="background:var(--blue-lt);color:var(--blue);border:1px solid var(--blue-border);">
+        <i data-lucide="plus-circle" style="width:14px;height:14px;"></i> + Registrar Ocorrência neste Item
+      </button>
+      <button class="btn btn-primary btn-sm" onclick="fecharPopup('popup-detalhes-transmissao')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     POPUP: PROPOR ITEM NO ORÇAMENTO
+═══════════════════════════════════════ -->
+<div class="overlay" id="popup-novo-item-orcamento" hidden role="dialog" aria-modal="true" aria-labelledby="orc-modal-title">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-icon" style="background:#0D9488;">
+        <i data-lucide="coins" style="width:17px;height:17px;color:#fff;stroke-width:2;"></i>
+      </div>
+      <div>
+        <h2 id="orc-modal-title">Propor Linha Orçamentária — <span class="orc-ano-display">2027</span></h2>
+        <p>Inclusão no plano de investimentos e custeio anual</p>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="frow">
+        <label for="orc-modal-desc">Descrição do Item / Equipamento / Projeto <span style="color:var(--red)">*</span></label>
+        <input type="text" id="orc-modal-desc" placeholder="Ex: Substituição de 2 Transmissores LiveU 4K" />
+      </div>
+      <div class="fg2">
+        <div class="frow">
+          <label for="orc-modal-tipo">Classificação <span style="color:var(--red)">*</span></label>
+          <select id="orc-modal-tipo">
+            <option value="CAPEX">CAPEX (Investimento / Aquisição)</option>
+            <option value="OPEX">OPEX (Custeio / Manutenção)</option>
+          </select>
+        </div>
+        <div class="frow">
+          <label for="orc-modal-praca">Praça / Localidade <span style="color:var(--red)">*</span></label>
+          <select id="orc-modal-praca">
+            <option value="Juiz de Fora">Juiz de Fora</option>
+            <option value="Uberlândia">Uberlândia</option>
+            <option value="Uberaba">Uberaba</option>
+            <option value="Divinópolis">Divinópolis</option>
+            <option value="Araxá">Araxá</option>
+            <option value="Rede Integração (Geral)">Rede Integração (Geral)</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg2">
+        <div class="frow">
+          <label for="orc-modal-valor">Valor Estimado (R$) <span style="color:var(--red)">*</span></label>
+          <input type="number" id="orc-modal-valor" placeholder="Ex: 45000" min="0" />
+        </div>
+        <div class="frow">
+          <label for="orc-modal-prio">Prioridade <span style="color:var(--red)">*</span></label>
+          <select id="orc-modal-prio">
+            <option value="Alta">Alta</option>
+            <option value="Média" selected>Média</option>
+            <option value="Baixa">Baixa</option>
+            <option value="Estratégica">Estratégica</option>
+          </select>
+        </div>
+      </div>
+      <div class="frow">
+        <label for="orc-modal-just">Justificativa Técnica / Benefício Esperado</label>
+        <textarea id="orc-modal-just" placeholder="Descreva a necessidade da aquisição ou custeio para a operação..." style="min-height:65px;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;gap:8px;">
+      <button class="btn btn-ghost" onclick="fecharPopup('popup-novo-item-orcamento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarItemOrcamento()">Adicionar ao Orçamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     SIDEBAR
+═══════════════════════════════════════ -->
+<aside class="sidebar" role="navigation" aria-label="Menu principal">
+  <nav class="s-nav">
+    <div style="padding:14px 6px 6px;font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.1px;user-select:none;">TV Integração</div>
+    <div class="s-btn active" onclick="irPara('dashboard',this)" role="button" tabindex="0">
+      <i data-lucide="home" style="width:15px;height:15px;stroke-width:2;"></i>
+      <span class="s-label">Ocorrências</span>
+    </div>
+    <div class="s-section">Relatórios</div>
+    <div class="s-btn" onclick="irPara('ctrs',this)" role="button" tabindex="0">
+      <i data-lucide="radio" style="width:15px;height:15px;stroke-width:2;"></i>
+      <span class="s-label">Relatório CTRS</span>
+    </div>
+    <div class="s-btn" onclick="irPara('historico',this)" role="button" tabindex="0">
+      <i data-lucide="clock" style="width:15px;height:15px;stroke-width:2;"></i>
+      <span class="s-label">Histórico</span>
+    </div>
+    <div class="s-section">Recebimento</div>
+    <div class="s-btn" onclick="irPara('recebimento',this)" role="button" tabindex="0">
+      <i data-lucide="package-check" style="width:15px;height:15px;stroke-width:2;"></i>
+      <span class="s-label">Recebimento de Materiais</span>
+    </div>
+    <div class="s-btn" onclick="irPara('compras_vendas',this)" role="button" tabindex="0">
+      <i data-lucide="shopping-cart" style="width:15px;height:15px;stroke-width:2;"></i>
+      <span class="s-label">Solicitação de Compras</span>
+    </div>
+    <div class="s-btn" onclick="irPara('orcamento',this)" role="button" tabindex="0">
+      <i data-lucide="coins" style="width:15px;height:15px;stroke-width:2;"></i>
+      <span class="s-label">Orçamento <span class="sidebar-orc-ano">2027</span></span>
+    </div>
+    <div class="s-section">Dashboards</div>
+    <div class="s-btn" onclick="irPara('dashboard_ocorrencias',this)" role="button" tabindex="0">
+      <i data-lucide="check-circle" style="width:15px;height:15px;stroke-width:2;"></i>
+      <span class="s-label">Dashboard Ocorrências</span>
+    </div>
+    <div class="s-btn" onclick="irPara('dashboard_transmissoes',this)" role="button" tabindex="0">
+      <i data-lucide="bar-chart-3" style="width:15px;height:15px;stroke-width:2;"></i>
+      <span class="s-label">Dashboard Transmissões</span>
+    </div>
+    <div class="s-section">Sistema</div>
+    <div class="s-btn" onclick="abrirNotificacoes()" role="button" tabindex="0">
+      <i data-lucide="bell" style="width:15px;height:15px;stroke-width:2;"></i>
+      <span class="s-label">Notificações</span>
+      <span class="s-badge">0</span>
+    </div>
+    <div class="s-btn" onclick="irPara('config',this)" role="button" tabindex="0">
+      <i data-lucide="settings" style="width:15px;height:15px;stroke-width:2;"></i>
+      <span class="s-label">Configurações</span>
+    </div>
+  </nav>
+  <div class="s-footer" style="position:relative;">
+    <!-- POPOVER COM INFORMAÇÕES DO USUÁRIO -->
+    <div class="user-popover" id="user-popover" hidden>
+      <div class="up-header">
+        <div class="up-avatar" id="up-avatar">OP</div>
+        <div>
+          <div class="up-name" id="up-name">Operador</div>
+          <div class="up-role" id="up-role">Técnico de Estúdio</div>
+        </div>
+      </div>
+      <div class="up-divider"></div>
+      <div class="up-info-row">
+        <span class="up-label">Praça:</span>
+        <span class="up-val" id="up-praca">Juiz de Fora</span>
+      </div>
+      <div class="up-info-row">
+        <span class="up-label">E-mail:</span>
+        <span class="up-val" id="up-email">teste@teste.com</span>
+      </div>
+      <div class="up-info-row">
+        <span class="up-label">Status:</span>
+        <span class="up-val status-online"><span class="online-dot"></span> Online</span>
+      </div>
+      <div class="up-info-row">
+        <span class="up-label">Tempo logado:</span>
+        <span class="up-val" id="up-timer">00h 00m 00s</span>
+      </div>
+    </div>
+
+    <div class="s-user-block" id="s-user-block" onclick="toggleUserPopover(event)" title="Clique para ver detalhes do usuário">
+      <div class="s-avatar" aria-hidden="true">OP</div>
+      <div style="flex:1;min-width:0;">
+        <div class="s-user-name">Operador</div>
+        <div class="s-user-role">Técnico de Estúdio</div>
+      </div>
+    </div>
+    <button class="btn btn-ghost btn-xs" onclick="abrirPopup('popup-logout')" title="Sair" aria-label="Sair" style="padding:4px 7px;display:flex;align-items:center;">
+      <i data-lucide="log-out" style="width:13px;height:13px;color:var(--muted);stroke-width:2;"></i>
+    </button>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════
+     MAIN
+═══════════════════════════════════════ -->
+<div class="main">
+
+  <header class="topbar">
+    <h1 class="topbar-title" id="page-title">Ocorrências</h1>
+    <span class="chip" id="page-chip">Logado há: 00h 00m 00s</span>
+    <button class="notif-btn" onclick="abrirNotificacoes()" aria-label="Notificações">
+      <i data-lucide="bell" style="width:15px;height:15px;stroke-width:2;"></i>
+      <div class="notif-dot" aria-hidden="true"></div>
+    </button>
+    <button class="btn btn-primary btn-sm" onclick="abrirPopup('popup-nova-oc')" style="display:flex;align-items:center;gap:5px;">
+      <i data-lucide="plus" style="width:13px;height:13px;color:#fff;stroke-width:2.5;"></i>
+      Nova Ocorrência
+    </button>
+  </header>
+
+  <!-- ── PÁGINA: OCORRÊNCIAS ── -->
+  <main class="page active" id="page-dashboard" aria-label="Ocorrências">
+    <div class="scroll-area">
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-dot sd-r"></div><div><div class="stat-num sn-r">5</div><div class="stat-lbl">Abertas</div></div></div>
+        <div class="stat-card"><div class="stat-dot sd-y"></div><div><div class="stat-num sn-y">2</div><div class="stat-lbl">Atrasadas</div></div></div>
+        <div class="stat-card"><div class="stat-dot sd-g"></div><div><div class="stat-num sn-g">0</div><div class="stat-lbl">Resolvidas</div></div></div>
+        <div class="stat-card"><div class="stat-dot sd-b"></div><div><div class="stat-num sn-b">1</div><div class="stat-lbl">Turno anterior</div></div></div>
+      </div>
+      <div class="sec-header">
+        <h2>Ocorrências</h2>
+        <div class="pills" role="group" aria-label="Filtros">
+          <button class="pill on" onclick="filtrar(this, 'todas')">Todas</button>
+          <button class="pill"    onclick="filtrar(this, 'alta')">Alta</button>
+          <button class="pill"    onclick="filtrar(this, 'media')">Média</button>
+          <button class="pill"    onclick="filtrar(this, 'baixa')">Baixa</button>
+          <button class="pill"    onclick="filtrar(this, 'atrasadas')">Atrasadas</button>
+        </div>
+      </div>
+      <!-- Gerado dinamicamente pelo script.js -->
+      <div id="oc-list"></div>
+    </div>
+  </main>
+
+  <!-- ── PÁGINA: CTRS ── -->
+  <main class="page" id="page-ctrs" aria-label="CTRS — Checklist de Transmissão ao Vivo">
+    <div class="rel-layout">
+      <div class="rel-center">
+        <div class="dest-bar">
+          <strong>Envio automático ao salvar:</strong>
+          <span class="dest-tag">Relatório Power BI</span>
+          <span class="dest-tag">E-mail</span>
+          <span class="dest-ref">Processo 1.1.1. P02 – F02</span>
+        </div>
+        <div class="form-card">
+          <h3><div class="fcard-ico fci-b" style="display:flex;align-items:center;justify-content:center;"><i data-lucide="clipboard" style="width:13px;height:13px;stroke-width:2;"></i></div> Informações Principais</h3>
+          <div class="fg3">
+            <div class="frow"><label for="ctrs-data">Data</label><input id="ctrs-data" type="date" value="2026-08-06"/></div>
+            <div class="frow"><label for="ctrs-praca">Praça</label><input id="ctrs-praca" type="text" value="Juiz de Fora"/></div>
+            <div class="frow"><label for="ctrs-tipo">Tipo</label>
+              <select id="ctrs-tipo"><option selected>INTEGRAÇÃO NOTÍCIA</option><option>MG1</option><option>GIRO</option><option>MG2</option><option>Outros</option></select>
+            </div>
+          </div>
+          <div class="frow"><label for="ctrs-obs">Observações Gerais</label><textarea id="ctrs-obs" placeholder="Observações sobre a transmissão..."></textarea></div>
+        </div>
+        <div class="form-card">
+          <h3><div class="fcard-ico fci-g" style="display:flex;align-items:center;justify-content:center;"><i data-lucide="radio" style="width:13px;height:13px;stroke-width:2;"></i></div> Transmissões ao Vivo
+            <span style="font-size:11px;color:var(--muted);font-weight:400;margin-left:4px;">C = Conforme · NC = Não Conforme · NA = Não se Aplica</span>
+          </h3>
+          <div class="acc-block">
+            <div class="acc-head open" onclick="togAcc(this)" aria-expanded="true">Transmissão Vivo 1<i data-lucide="chevron-down" class="acc-arrow" style="width:14px;height:14px;stroke-width:2;"></i></div>
+            <div class="acc-body open">
+              <div class="fg2">
+                <div class="frow"><label>Cidade / Bairro</label><input type="text" placeholder="Ex: Centro — Juiz de Fora"/></div>
+                <div class="frow"><label>Infraestrutura da Transmissão</label><input type="text" placeholder="Ex: LiveU1, LiveU2..."/></div>
+                <div class="frow"><label>Hora Abertura Sinal</label><input type="time"/></div>
+                <div class="frow"><label>Hora Final (Teste OK)</label><input type="time"/></div>
+                <div class="frow"><label>Qualidade do Áudio</label><select><option>C — Conforme</option><option>NC — Não Conforme</option><option>NA — Não se Aplica</option></select></div>
+                <div class="frow"><label>Qualidade do Vídeo</label><select><option>C — Conforme</option><option>NC — Não Conforme</option><option>NA — Não se Aplica</option></select></div>
+                <div class="frow"><label>Repórter</label><input type="text" placeholder="Nome do repórter"/></div>
+                <div class="frow"><label>Entradas</label><input type="text" placeholder="Ex: 2 entradas conformes — externo"/></div>
+                <div class="frow"><label>Repórter Cinematográfico</label><input type="text" placeholder="Nome do RC"/></div>
+                <div class="frow"><label>Status da Transmissão</label><select><option>C — Conforme</option><option>NC — Não Conforme</option><option>NA — Não se Aplica</option></select></div>
+              </div>
+              <div class="frow"><label>Falhas Ocorridas</label><textarea placeholder="Descreva as falhas. Se nenhuma, deixe em branco."></textarea></div>
+            </div>
+          </div>
+          <div class="acc-block">
+            <div class="acc-head" onclick="togAcc(this)" aria-expanded="false">Transmissão Vivo 2<i data-lucide="chevron-down" class="acc-arrow" style="width:14px;height:14px;stroke-width:2;"></i></div>
+            <div class="acc-body">
+              <div class="fg2">
+                <div class="frow"><label>Cidade / Bairro</label><input type="text"/></div><div class="frow"><label>Infraestrutura da Transmissão</label><input type="text"/></div>
+                <div class="frow"><label>Hora Abertura Sinal</label><input type="time"/></div><div class="frow"><label>Hora Final (Teste OK)</label><input type="time"/></div>
+                <div class="frow"><label>Qualidade do Áudio</label><select><option>C — Conforme</option><option>NC — Não Conforme</option><option>NA — Não se Aplica</option></select></div>
+                <div class="frow"><label>Qualidade do Vídeo</label><select><option>C — Conforme</option><option>NC — Não Conforme</option><option>NA — Não se Aplica</option></select></div>
+                <div class="frow"><label>Repórter</label><input type="text"/></div><div class="frow"><label>Entradas</label><input type="text"/></div>
+                <div class="frow"><label>Repórter Cinematográfico</label><input type="text"/></div>
+                <div class="frow"><label>Status da Transmissão</label><select><option>C — Conforme</option><option>NC — Não Conforme</option><option>NA — Não se Aplica</option></select></div>
+              </div>
+              <div class="frow"><label>Falhas Ocorridas</label><textarea></textarea></div>
+            </div>
+          </div>
+          <div class="acc-block">
+            <div class="acc-head" onclick="togAcc(this)" aria-expanded="false">Transmissão Vivo 3<i data-lucide="chevron-down" class="acc-arrow" style="width:14px;height:14px;stroke-width:2;"></i></div>
+            <div class="acc-body">
+              <div class="fg2">
+                <div class="frow"><label>Cidade / Bairro</label><input type="text"/></div><div class="frow"><label>Infraestrutura da Transmissão</label><input type="text"/></div>
+                <div class="frow"><label>Hora Abertura Sinal</label><input type="time"/></div><div class="frow"><label>Hora Final (Teste OK)</label><input type="time"/></div>
+                <div class="frow"><label>Qualidade do Áudio</label><select><option>C — Conforme</option><option>NC — Não Conforme</option><option>NA — Não se Aplica</option></select></div>
+                <div class="frow"><label>Qualidade do Vídeo</label><select><option>C — Conforme</option><option>NC — Não Conforme</option><option>NA — Não se Aplica</option></select></div>
+                <div class="frow"><label>Repórter</label><input type="text"/></div><div class="frow"><label>Entradas</label><input type="text"/></div>
+                <div class="frow"><label>Repórter Cinematográfico</label><input type="text"/></div>
+                <div class="frow"><label>Status da Transmissão</label><select><option>C — Conforme</option><option>NC — Não Conforme</option><option>NA — Não se Aplica</option></select></div>
+              </div>
+              <div class="frow"><label>Falhas Ocorridas</label><textarea></textarea></div>
+            </div>
+          </div>
+          <div class="acc-block">
+            <div class="acc-head" onclick="togAcc(this)" aria-expanded="false">Transmissão Vivo 4<i data-lucide="chevron-down" class="acc-arrow" style="width:14px;height:14px;stroke-width:2;"></i></div>
+            <div class="acc-body">
+              <div class="fg2">
+                <div class="frow"><label>Cidade / Bairro</label><input type="text"/></div><div class="frow"><label>Infraestrutura da Transmissão</label><input type="text"/></div>
+                <div class="frow"><label>Hora Abertura Sinal</label><input type="time"/></div><div class="frow"><label>Hora Final (Teste OK)</label><input type="time"/></div>
+                <div class="frow"><label>Qualidade do Áudio</label><select><option>C — Conforme</option><option>NC — Não Conforme</option><option>NA — Não se Aplica</option></select></div>
+                <div class="frow"><label>Qualidade do Vídeo</label><select><option>C — Conforme</option><option>NC — Não Conforme</option><option>NA — Não se Aplica</option></select></div>
+                <div class="frow"><label>Repórter</label><input type="text"/></div><div class="frow"><label>Entradas</label><input type="text"/></div>
+                <div class="frow"><label>Repórter Cinematográfico</label><input type="text"/></div>
+                <div class="frow"><label>Status da Transmissão</label><select><option>C — Conforme</option><option>NC — Não Conforme</option><option>NA — Não se Aplica</option></select></div>
+              </div>
+              <div class="frow"><label>Falhas Ocorridas</label><textarea></textarea></div>
+            </div>
+          </div>
+        </div>
+        <div class="submit-bar">
+          <div class="dest-info-group">
+            <span class="dest-label">Envio automático para:</span>
+            <div class="dest-tags">
+              <span class="sb-tag">Relatório Power BI</span>
+              <span class="sb-tag">E-mail</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-left:auto;">
+            <button class="btn btn-ghost btn-sm" onclick="salvarRascunhoRelatorioTV()">Salvar Rascunho</button>
+            <button class="btn btn-primary btn-sm" onclick="enviarRelatorioTV()">Enviar Relatório</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ASIDE CTRS — gerado pelo JS ── -->
+      <aside class="rel-aside" id="aside-ctrs" aria-label="Ocorrências">
+        <!-- preenchido por renderAside('aside-ctrs') -->
+      </aside>
+    </div>
+  </main>
+
+  <!-- ── PÁGINA: DASHBOARD OCORRÊNCIAS (UNIFICADA COM ALTERNADOR PREMIUM) ── -->
+  <main class="page" id="page-dashboard-ocorrencias" aria-label="Dashboard Ocorrências">
+    <div class="scroll-area">
+      <!-- HEADER DO DASHBOARD COM CONTROLE DESLIZANTE SUAVE -->
+      <div class="dash-card" style="padding:16px 20px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;background:#FFFFFF;border:1px solid var(--border);">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10B981;box-shadow:0 0 8px rgba(16,185,129,0.5);"></span>
+            <h2 style="font-size:16px;font-weight:800;letter-spacing:-0.01em;margin:0;color:var(--txt);text-transform:uppercase;">
+              Transmissões ao Vivo — <span id="dash-view-title" style="color:var(--blue);">Telejornal</span>
+            </h2>
+          </div>
+          <div style="font-size:12px;font-weight:500;color:var(--muted);margin-top:2px;">Painel Consolidado de Telemetria &nbsp;·&nbsp; Juiz de Fora</div>
+        </div>
+
+        <!-- CONTROLE SEGMENTADO SUAVE (macOS PILL SWITCH) -->
+        <div style="display:flex;background:rgba(0,0,0,0.05);padding:3px;border-radius:30px;gap:3px;border:1px solid var(--border-lt);box-shadow:inset 0 1px 2px rgba(0,0,0,0.04);">
+          <button id="btn-tab-tj" type="button" onclick="alternarDashboard('telejornal')" style="background:#007AFF;color:#ffffff;border:none;font-weight:700;display:flex;align-items:center;gap:6px;padding:6px 16px;border-radius:24px;cursor:pointer;transition:all .22s cubic-bezier(0.4,0,0.2,1);font-size:12px;box-shadow:0 2px 6px rgba(0,122,255,0.35);">
+            <i data-lucide="tv" style="width:14px;height:14px;"></i>
+            Telejornal
+          </button>
+          <button id="btn-tab-eq" type="button" onclick="alternarDashboard('equipamento')" style="background:transparent;color:var(--muted);border:none;font-weight:600;display:flex;align-items:center;gap:6px;padding:6px 16px;border-radius:24px;cursor:pointer;transition:all .22s cubic-bezier(0.4,0,0.2,1);font-size:12px;">
+            <i data-lucide="video" style="width:14px;height:14px;"></i>
+            Equipamentos
+          </button>
+        </div>
+
+        <!-- AÇÕES DO DASHBOARD -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-sm" onclick="abrirModalOcDashboardContextual()" style="background:#0D9488;color:#ffffff;border:none;display:flex;align-items:center;gap:6px;padding:7px 14px;font-weight:600;border-radius:var(--r-md);box-shadow:0 1px 3px rgba(13,148,136,0.3);">
+            <i data-lucide="plus-circle" style="width:15px;height:15px;stroke-width:2.5;"></i>
+            + Registrar Ocorrência
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="abrirPopup('popup-gerar-powerbi')" style="display:flex;align-items:center;gap:6px;padding:7px 14px;font-weight:600;">
+            <i data-lucide="bar-chart-2" style="width:15px;height:15px;stroke-width:2.5;color:var(--blue);"></i>
+            Gerar Relatório Power BI
+          </button>
+        </div>
+      </div>
+
+      <!-- VISÃO 1: TELEJORNAL -->
+      <div id="dash-view-telejornal" class="dash-view-animated">
+        <!-- GRID DE CARDS DOS TELEJORNAIS -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;margin-bottom:20px;">
+          <!-- INTEGRAÇÃO NOTÍCIA -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('INTEGRAÇÃO NOTÍCIA', 'telejornal')" style="cursor:pointer;" title="Clique para ver relatório e telemetria detalhada">
+            <h4 style="font-size:13px;font-weight:700;text-align:center;margin-bottom:14px;color:#0F172A;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:6px;">
+              <span style="width:7px;height:7px;border-radius:50%;background:#0284C7;"></span> INTEGRAÇÃO NOTÍCIA
+            </h4>
+            <div style="display:flex;align-items:center;justify-content:center;gap:18px;">
+              <div id="pie-tj-noticia" style="width:96px;height:96px;border-radius:50%;background:conic-gradient(#10B981 0% 99%, #EF4444 99% 99%, #F59E0B 99% 100%);box-shadow:0 3px 10px rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut">
+                  <div style="font-size:15px;font-weight:800;color:#0F172A;line-height:1;" class="pie-count">152</div>
+                  <div style="font-size:8.5px;color:#64748B;font-weight:600;margin-top:1px;">TOTAL</div>
+                </div>
+              </div>
+              <div style="font-size:11.5px;line-height:1.75;color:#334155;">
+                <div style="display:flex;align-items:center;gap:6px;"><span style="width:9px;height:9px;background:#10B981;border-radius:50%;display:inline-block;"></span> Conformes <strong class="pct-conf" style="color:#059669;margin-left:auto;">(99%)</strong></div>
+                <div style="display:flex;align-items:center;gap:6px;"><span style="width:9px;height:9px;background:#EF4444;border-radius:50%;display:inline-block;"></span> Não Conformes <strong class="pct-nc" style="color:#DC2626;margin-left:auto;">(0%)</strong></div>
+                <div style="display:flex;align-items:center;gap:6px;"><span style="width:9px;height:9px;background:#F59E0B;border-radius:50%;display:inline-block;"></span> Cancelados <strong class="pct-canc" style="color:#D97706;margin-left:auto;">(1%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MG1 -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('MG1', 'telejornal')" style="cursor:pointer;" title="Clique para ver relatório e telemetria detalhada">
+            <h4 style="font-size:13px;font-weight:700;text-align:center;margin-bottom:14px;color:#0F172A;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:6px;">
+              <span style="width:7px;height:7px;border-radius:50%;background:#0284C7;"></span> MG1
+            </h4>
+            <div style="display:flex;align-items:center;justify-content:center;gap:18px;">
+              <div id="pie-tj-mg1" style="width:96px;height:96px;border-radius:50%;background:conic-gradient(#10B981 0% 99%, #EF4444 99% 99%, #F59E0B 99% 100%);box-shadow:0 3px 10px rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut">
+                  <div style="font-size:15px;font-weight:800;color:#0F172A;line-height:1;" class="pie-count">192</div>
+                  <div style="font-size:8.5px;color:#64748B;font-weight:600;margin-top:1px;">TOTAL</div>
+                </div>
+              </div>
+              <div style="font-size:11.5px;line-height:1.75;color:#334155;">
+                <div style="display:flex;align-items:center;gap:6px;"><span style="width:9px;height:9px;background:#10B981;border-radius:50%;display:inline-block;"></span> Conformes <strong class="pct-conf" style="color:#059669;margin-left:auto;">(99%)</strong></div>
+                <div style="display:flex;align-items:center;gap:6px;"><span style="width:9px;height:9px;background:#EF4444;border-radius:50%;display:inline-block;"></span> Não Conformes <strong class="pct-nc" style="color:#DC2626;margin-left:auto;">(0%)</strong></div>
+                <div style="display:flex;align-items:center;gap:6px;"><span style="width:9px;height:9px;background:#F59E0B;border-radius:50%;display:inline-block;"></span> Cancelados <strong class="pct-canc" style="color:#D97706;margin-left:auto;">(1%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MG2 -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('MG2', 'telejornal')" style="cursor:pointer;" title="Clique para ver relatório e telemetria detalhada">
+            <h4 style="font-size:13px;font-weight:700;text-align:center;margin-bottom:14px;color:#0F172A;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:6px;">
+              <span style="width:7px;height:7px;border-radius:50%;background:#0284C7;"></span> MG2
+            </h4>
+            <div style="display:flex;align-items:center;justify-content:center;gap:18px;">
+              <div id="pie-tj-mg2" style="width:96px;height:96px;border-radius:50%;background:conic-gradient(#10B981 0% 100%, #EF4444 100% 100%, #F59E0B 100% 100%);box-shadow:0 3px 10px rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut">
+                  <div style="font-size:15px;font-weight:800;color:#0F172A;line-height:1;" class="pie-count">65</div>
+                  <div style="font-size:8.5px;color:#64748B;font-weight:600;margin-top:1px;">TOTAL</div>
+                </div>
+              </div>
+              <div style="font-size:11.5px;line-height:1.75;color:#334155;">
+                <div style="display:flex;align-items:center;gap:6px;"><span style="width:9px;height:9px;background:#10B981;border-radius:50%;display:inline-block;"></span> Conformes <strong class="pct-conf" style="color:#059669;margin-left:auto;">(100%)</strong></div>
+                <div style="display:flex;align-items:center;gap:6px;"><span style="width:9px;height:9px;background:#EF4444;border-radius:50%;display:inline-block;"></span> Não Conformes <strong class="pct-nc" style="color:#DC2626;margin-left:auto;">(0%)</strong></div>
+                <div style="display:flex;align-items:center;gap:6px;"><span style="width:9px;height:9px;background:#F59E0B;border-radius:50%;display:inline-block;"></span> Cancelados <strong class="pct-canc" style="color:#D97706;margin-left:auto;">(0%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- GIRO MG2 -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('GIRO MG2', 'telejornal')" style="cursor:pointer;" title="Clique para ver relatório e telemetria detalhada">
+            <h4 style="font-size:13px;font-weight:700;text-align:center;margin-bottom:14px;color:#0F172A;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:6px;">
+              <span style="width:7px;height:7px;border-radius:50%;background:#0284C7;"></span> GIRO MG2
+            </h4>
+            <div style="display:flex;align-items:center;justify-content:center;gap:18px;">
+              <div id="pie-tj-giro" style="width:96px;height:96px;border-radius:50%;background:conic-gradient(#10B981 0% 100%, #EF4444 100% 100%, #F59E0B 100% 100%);box-shadow:0 3px 10px rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut">
+                  <div style="font-size:15px;font-weight:800;color:#0F172A;line-height:1;" class="pie-count">10</div>
+                  <div style="font-size:8.5px;color:#64748B;font-weight:600;margin-top:1px;">TOTAL</div>
+                </div>
+              </div>
+              <div style="font-size:11.5px;line-height:1.75;color:#334155;">
+                <div style="display:flex;align-items:center;gap:6px;"><span style="width:9px;height:9px;background:#10B981;border-radius:50%;display:inline-block;"></span> Conformes <strong class="pct-conf" style="color:#059669;margin-left:auto;">(100%)</strong></div>
+                <div style="display:flex;align-items:center;gap:6px;"><span style="width:9px;height:9px;background:#EF4444;border-radius:50%;display:inline-block;"></span> Não Conformes <strong class="pct-nc" style="color:#DC2626;margin-left:auto;">(0%)</strong></div>
+                <div style="display:flex;align-items:center;gap:6px;"><span style="width:9px;height:9px;background:#F59E0B;border-radius:50%;display:inline-block;"></span> Cancelados <strong class="pct-canc" style="color:#D97706;margin-left:auto;">(0%)</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TRANSMISSÕES AO VIVO GERAL -->
+        <div class="dash-card" style="padding:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <h4 style="font-size:14px;font-weight:800;color:#0F172A;letter-spacing:.3px;margin:0;">
+              📊 TRANSMISSÕES AO VIVO GERAL
+            </h4>
+            <span id="trans-geral-total-badge" style="font-size:11.5px;font-weight:600;color:#64748B;background:#F1F5F9;padding:3px 10px;border-radius:12px;">Total: 0 transmissões</span>
+          </div>
+          <div style="display:flex;align-items:flex-end;justify-content:space-around;height:140px;padding:0 30px;border-bottom:2px solid #E2E8F0;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;width:90px;">
+              <span id="trans-geral-conf-txt" style="font-size:11.5px;font-weight:800;color:#10B981;">0% · 0</span>
+              <div id="trans-geral-conf-bar" style="width:100%;height:4px;background:linear-gradient(180deg, #10B981 0%, #059669 100%);border-radius:6px 6px 0 0;box-shadow:0 -2px 8px rgba(16,185,129,0.25);"></div>
+              <span style="font-size:11px;font-weight:700;color:#475569;margin-top:6px;">CONFORMES</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;width:90px;">
+              <span id="trans-geral-nc-txt" style="font-size:11.5px;font-weight:800;color:#EF4444;">0% · 0</span>
+              <div id="trans-geral-nc-bar" style="width:100%;height:4px;background:linear-gradient(180deg, #EF4444 0%, #DC2626 100%);border-radius:6px 6px 0 0;box-shadow:0 -2px 8px rgba(239,68,68,0.25);"></div>
+              <span style="font-size:11px;font-weight:700;color:#475569;margin-top:6px;">NÃO CONF.</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;width:90px;">
+              <span id="trans-geral-canc-txt" style="font-size:11.5px;font-weight:800;color:#F59E0B;">0% · 0</span>
+              <div id="trans-geral-canc-bar" style="width:100%;height:4px;background:linear-gradient(180deg, #F59E0B 0%, #D97706 100%);border-radius:6px 6px 0 0;box-shadow:0 -2px 8px rgba(245,158,11,0.25);"></div>
+              <span style="font-size:11px;font-weight:700;color:#475569;margin-top:6px;">CANCELADOS</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VISÃO 2: EQUIPAMENTOS -->
+      <div id="dash-view-equipamentos" class="dash-view-animated" style="display:none;">
+        <!-- GRID DE EQUIPAMENTOS (13 ITENS) NO TOPO -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:14px;margin-bottom:20px;">
+          <!-- LIVE U1 -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('LIVE U1', 'equipamento')" style="padding:13px;cursor:pointer;" title="Clique para ver detalhes operacionais e telemetria">
+            <h5 style="font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;color:#0F172A;">LIVE U1</h5>
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+              <div id="pie-eq-liveu1" style="width:76px;height:76px;border-radius:50%;background:conic-gradient(#10B981 0% 98%, #EF4444 98% 99%, #F59E0B 99% 100%);box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut-sm">
+                  <div style="font-size:12.5px;font-weight:800;color:#0F172A;" class="pie-count">112</div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;line-height:1.6;color:#334155;">
+                <div><span style="color:#10B981;">■</span> Conf. <strong class="pct-conf" style="color:#059669;">(98%)</strong></div>
+                <div><span style="color:#EF4444;">■</span> Falha <strong class="pct-nc" style="color:#DC2626;">(1%)</strong></div>
+                <div><span style="color:#F59E0B;">■</span> Canc. <strong class="pct-canc" style="color:#D97706;">(1%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- LIVE U2 -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('LIVE U2', 'equipamento')" style="padding:13px;cursor:pointer;" title="Clique para ver detalhes operacionais e telemetria">
+            <h5 style="font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;color:#0F172A;">LIVE U2</h5>
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+              <div id="pie-eq-liveu2" style="width:76px;height:76px;border-radius:50%;background:conic-gradient(#10B981 0% 100%, #EF4444 100% 100%, #F59E0B 100% 100%);box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut-sm">
+                  <div style="font-size:12.5px;font-weight:800;color:#0F172A;" class="pie-count">106</div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;line-height:1.6;color:#334155;">
+                <div><span style="color:#10B981;">■</span> Conf. <strong class="pct-conf" style="color:#059669;">(100%)</strong></div>
+                <div><span style="color:#EF4444;">■</span> Falha <strong class="pct-nc" style="color:#DC2626;">(0%)</strong></div>
+                <div><span style="color:#F59E0B;">■</span> Canc. <strong class="pct-canc" style="color:#D97706;">(0%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- LIVE U3 -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('LIVE U3', 'equipamento')" style="padding:13px;cursor:pointer;" title="Clique para ver detalhes operacionais e telemetria">
+            <h5 style="font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;color:#0F172A;">LIVE U3</h5>
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+              <div id="pie-eq-liveu3" style="width:76px;height:76px;border-radius:50%;background:conic-gradient(#10B981 0% 100%, #EF4444 100% 100%, #F59E0B 100% 100%);box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut-sm">
+                  <div style="font-size:12.5px;font-weight:800;color:#0F172A;" class="pie-count">10</div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;line-height:1.6;color:#334155;">
+                <div><span style="color:#10B981;">■</span> Conf. <strong class="pct-conf" style="color:#059669;">(100%)</strong></div>
+                <div><span style="color:#EF4444;">■</span> Falha <strong class="pct-nc" style="color:#DC2626;">(0%)</strong></div>
+                <div><span style="color:#F59E0B;">■</span> Canc. <strong class="pct-canc" style="color:#D97706;">(0%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- LIVE U SMART -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('LIVE U SMART', 'equipamento')" style="padding:13px;cursor:pointer;" title="Clique para ver detalhes operacionais e telemetria">
+            <h5 style="font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;color:#0F172A;">LIVE U SMART</h5>
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+              <div id="pie-eq-liveusmart" style="width:76px;height:76px;border-radius:50%;background:conic-gradient(#10B981 0% 100%, #EF4444 100% 100%, #F59E0B 100% 100%);box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut-sm">
+                  <div style="font-size:12.5px;font-weight:800;color:#0F172A;" class="pie-count">23</div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;line-height:1.6;color:#334155;">
+                <div><span style="color:#10B981;">■</span> Conf. <strong class="pct-conf" style="color:#059669;">(100%)</strong></div>
+                <div><span style="color:#EF4444;">■</span> Falha <strong class="pct-nc" style="color:#DC2626;">(0%)</strong></div>
+                <div><span style="color:#F59E0B;">■</span> Canc. <strong class="pct-canc" style="color:#D97706;">(0%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- REDAÇÃO -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('REDAÇÃO', 'equipamento')" style="padding:13px;cursor:pointer;" title="Clique para ver detalhes operacionais e telemetria">
+            <h5 style="font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;color:#0F172A;">REDAÇÃO</h5>
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+              <div id="pie-eq-redacao" style="width:76px;height:76px;border-radius:50%;background:conic-gradient(#10B981 0% 100%, #EF4444 100% 100%, #F59E0B 100% 100%);box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut-sm">
+                  <div style="font-size:12.5px;font-weight:800;color:#0F172A;" class="pie-count">44</div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;line-height:1.6;color:#334155;">
+                <div><span style="color:#10B981;">■</span> Conf. <strong class="pct-conf" style="color:#059669;">(100%)</strong></div>
+                <div><span style="color:#EF4444;">■</span> Falha <strong class="pct-nc" style="color:#DC2626;">(0%)</strong></div>
+                <div><span style="color:#F59E0B;">■</span> Canc. <strong class="pct-canc" style="color:#D97706;">(0%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- LIVE U4 -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('LIVE U4', 'equipamento')" style="padding:13px;cursor:pointer;" title="Clique para ver detalhes operacionais e telemetria">
+            <h5 style="font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;color:#0F172A;">LIVE U4</h5>
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+              <div id="pie-eq-liveu4" style="width:76px;height:76px;border-radius:50%;background:conic-gradient(#10B981 0% 100%, #EF4444 100% 100%, #F59E0B 100% 100%);box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut-sm">
+                  <div style="font-size:12.5px;font-weight:800;color:#0F172A;" class="pie-count">108</div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;line-height:1.6;color:#334155;">
+                <div><span style="color:#10B981;">■</span> Conf. <strong class="pct-conf" style="color:#059669;">(100%)</strong></div>
+                <div><span style="color:#EF4444;">■</span> Falha <strong class="pct-nc" style="color:#DC2626;">(0%)</strong></div>
+                <div><span style="color:#F59E0B;">■</span> Canc. <strong class="pct-canc" style="color:#D97706;">(0%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- NET PRAÇA -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('NET PRAÇA', 'equipamento')" style="padding:13px;cursor:pointer;" title="Clique para ver detalhes operacionais e telemetria">
+            <h5 style="font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;color:#0F172A;">NET PRAÇA</h5>
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+              <div id="pie-eq-netpraca" style="width:76px;height:76px;border-radius:50%;background:conic-gradient(#10B981 0% 100%, #EF4444 100% 100%, #F59E0B 100% 100%);box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut-sm">
+                  <div style="font-size:12.5px;font-weight:800;color:#0F172A;" class="pie-count">2</div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;line-height:1.6;color:#334155;">
+                <div><span style="color:#10B981;">■</span> Conf. <strong class="pct-conf" style="color:#059669;">(100%)</strong></div>
+                <div><span style="color:#EF4444;">■</span> Falha <strong class="pct-nc" style="color:#DC2626;">(0%)</strong></div>
+                <div><span style="color:#F59E0B;">■</span> Canc. <strong class="pct-canc" style="color:#D97706;">(0%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- NET PORTARIA -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('NET PORTARIA', 'equipamento')" style="padding:13px;cursor:pointer;" title="Clique para ver detalhes operacionais e telemetria">
+            <h5 style="font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;color:#0F172A;">NET PORTARIA</h5>
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+              <div id="pie-eq-netportaria" style="width:76px;height:76px;border-radius:50%;background:conic-gradient(#10B981 0% 100%, #EF4444 100% 100%, #F59E0B 100% 100%);box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut-sm">
+                  <div style="font-size:12.5px;font-weight:800;color:#0F172A;" class="pie-count">5</div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;line-height:1.6;color:#334155;">
+                <div><span style="color:#10B981;">■</span> Conf. <strong class="pct-conf" style="color:#059669;">(100%)</strong></div>
+                <div><span style="color:#EF4444;">■</span> Falha <strong class="pct-nc" style="color:#DC2626;">(0%)</strong></div>
+                <div><span style="color:#F59E0B;">■</span> Canc. <strong class="pct-canc" style="color:#D97706;">(0%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- FORMATOS NET -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('FORMATOS NET', 'equipamento')" style="padding:13px;cursor:pointer;" title="Clique para ver detalhes operacionais e telemetria">
+            <h5 style="font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;color:#0F172A;">FORMATOS NET</h5>
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+              <div id="pie-eq-formatosnet" style="width:76px;height:76px;border-radius:50%;background:conic-gradient(#10B981 0% 100%, #EF4444 100% 100%, #F59E0B 100% 100%);box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut-sm">
+                  <div style="font-size:12.5px;font-weight:800;color:#0F172A;" class="pie-count">3</div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;line-height:1.6;color:#334155;">
+                <div><span style="color:#10B981;">■</span> Conf. <strong class="pct-conf" style="color:#059669;">(100%)</strong></div>
+                <div><span style="color:#EF4444;">■</span> Falha <strong class="pct-nc" style="color:#DC2626;">(0%)</strong></div>
+                <div><span style="color:#F59E0B;">■</span> Canc. <strong class="pct-canc" style="color:#D97706;">(0%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- NET 2º ANDAR -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('NET 2º ANDAR', 'equipamento')" style="padding:13px;cursor:pointer;" title="Clique para ver detalhes operacionais e telemetria">
+            <h5 style="font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;color:#0F172A;">NET 2º ANDAR</h5>
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+              <div id="pie-eq-net2andar" style="width:76px;height:76px;border-radius:50%;background:conic-gradient(#10B981 0% 100%, #EF4444 100% 100%, #F59E0B 100% 100%);box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut-sm">
+                  <div style="font-size:12.5px;font-weight:800;color:#0F172A;" class="pie-count">1</div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;line-height:1.6;color:#334155;">
+                <div><span style="color:#10B981;">■</span> Conf. <strong class="pct-conf" style="color:#059669;">(100%)</strong></div>
+                <div><span style="color:#EF4444;">■</span> Falha <strong class="pct-nc" style="color:#DC2626;">(0%)</strong></div>
+                <div><span style="color:#F59E0B;">■</span> Canc. <strong class="pct-canc" style="color:#D97706;">(0%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- NET 3º ANDAR -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('NET 3º ANDAR', 'equipamento')" style="padding:13px;cursor:pointer;" title="Clique para ver detalhes operacionais e telemetria">
+            <h5 style="font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;color:#0F172A;">NET 3º ANDAR</h5>
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+              <div id="pie-eq-net3andar" style="width:76px;height:76px;border-radius:50%;background:conic-gradient(#10B981 0% 100%, #EF4444 100% 100%, #F59E0B 100% 100%);box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut-sm">
+                  <div style="font-size:12.5px;font-weight:800;color:#0F172A;" class="pie-count">1</div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;line-height:1.6;color:#334155;">
+                <div><span style="color:#10B981;">■</span> Conf. <strong class="pct-conf" style="color:#059669;">(100%)</strong></div>
+                <div><span style="color:#EF4444;">■</span> Falha <strong class="pct-nc" style="color:#DC2626;">(0%)</strong></div>
+                <div><span style="color:#F59E0B;">■</span> Canc. <strong class="pct-canc" style="color:#D97706;">(0%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- NET 4º ANDAR -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('NET 4º ANDAR', 'equipamento')" style="padding:13px;cursor:pointer;" title="Clique para ver detalhes operacionais e telemetria">
+            <h5 style="font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;color:#0F172A;">NET 4º ANDAR</h5>
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+              <div id="pie-eq-net4andar" style="width:76px;height:76px;border-radius:50%;background:conic-gradient(#10B981 0% 100%, #EF4444 100% 100%, #F59E0B 100% 100%);box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut-sm">
+                  <div style="font-size:12.5px;font-weight:800;color:#0F172A;" class="pie-count">1</div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;line-height:1.6;color:#334155;">
+                <div><span style="color:#10B981;">■</span> Conf. <strong class="pct-conf" style="color:#059669;">(100%)</strong></div>
+                <div><span style="color:#EF4444;">■</span> Falha <strong class="pct-nc" style="color:#DC2626;">(0%)</strong></div>
+                <div><span style="color:#F59E0B;">■</span> Canc. <strong class="pct-canc" style="color:#D97706;">(0%)</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- KMJ -->
+          <div class="dash-card" onclick="abrirDetalhesTransmissao('KMJ', 'equipamento')" style="padding:13px;cursor:pointer;" title="Clique para ver detalhes operacionais e telemetria">
+            <h5 style="font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;color:#0F172A;">KMJ</h5>
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+              <div id="pie-eq-kmj" style="width:76px;height:76px;border-radius:50%;background:conic-gradient(#10B981 0% 100%, #EF4444 100% 100%, #F59E0B 100% 100%);box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div class="dash-pie-donut-sm">
+                  <div style="font-size:12.5px;font-weight:800;color:#0F172A;" class="pie-count">1</div>
+                </div>
+              </div>
+              <div style="font-size:10.5px;line-height:1.6;color:#334155;">
+                <div><span style="color:#10B981;">■</span> Conf. <strong class="pct-conf" style="color:#059669;">(100%)</strong></div>
+                <div><span style="color:#EF4444;">■</span> Falha <strong class="pct-nc" style="color:#DC2626;">(0%)</strong></div>
+                <div><span style="color:#F59E0B;">■</span> Canc. <strong class="pct-canc" style="color:#D97706;">(0%)</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TRANSMISSÕES AO VIVO GERAL DE EQUIPAMENTOS (DINÂMICO) -->
+        <div class="dash-card" style="padding:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <h4 style="font-size:14px;font-weight:800;color:#0F172A;letter-spacing:.3px;margin:0;">
+              📊 TRANSMISSÕES AO VIVO GERAL — EQUIPAMENTOS
+            </h4>
+            <span id="trans-eq-geral-total-badge" style="font-size:11.5px;font-weight:600;color:#64748B;background:#F1F5F9;padding:3px 10px;border-radius:12px;">Total: 0 transmissões</span>
+          </div>
+          <div style="display:flex;align-items:flex-end;justify-content:space-around;height:140px;padding:0 30px;border-bottom:2px solid #E2E8F0;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;width:90px;">
+              <span id="trans-eq-geral-conf-txt" style="font-size:11.5px;font-weight:800;color:#10B981;">0% · 0</span>
+              <div id="trans-eq-geral-conf-bar" style="width:100%;height:4px;background:linear-gradient(180deg, #10B981 0%, #059669 100%);border-radius:6px 6px 0 0;box-shadow:0 -2px 8px rgba(16,185,129,0.25);"></div>
+              <span style="font-size:11px;font-weight:700;color:#475569;margin-top:6px;">CONFORMES</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;width:90px;">
+              <span id="trans-eq-geral-nc-txt" style="font-size:11.5px;font-weight:800;color:#EF4444;">0% · 0</span>
+              <div id="trans-eq-geral-nc-bar" style="width:100%;height:4px;background:linear-gradient(180deg, #EF4444 0%, #DC2626 100%);border-radius:6px 6px 0 0;box-shadow:0 -2px 8px rgba(239,68,68,0.25);"></div>
+              <span style="font-size:11px;font-weight:700;color:#475569;margin-top:6px;">NÃO CONF.</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;width:90px;">
+              <span id="trans-eq-geral-canc-txt" style="font-size:11.5px;font-weight:800;color:#F59E0B;">0% · 0</span>
+              <div id="trans-eq-geral-canc-bar" style="width:100%;height:4px;background:linear-gradient(180deg, #F59E0B 0%, #D97706 100%);border-radius:6px 6px 0 0;box-shadow:0 -2px 8px rgba(245,158,11,0.25);"></div>
+              <span style="font-size:11px;font-weight:700;color:#475569;margin-top:6px;">CANCELADOS</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── PÁGINA: FALHAS ── -->
+  <main class="page" id="page-falhas" aria-label="Relatório de Falhas de Engenharia">
+    <div class="rel-layout">
+      <div class="rel-center">
+        <div class="dest-bar">
+          <strong>Envio automático ao salvar:</strong>
+          <span class="dest-tag">Relatório de Falhas</span>
+          <span class="dest-tag">Relatório Power BI</span>
+          <span class="dest-tag">E-mail</span>
+          <span class="dest-ref">Processo 1.1.1.P06 – F01</span>
+        </div>
+        <div class="form-card">
+          <h3><div class="fcard-ico fci-b" style="display:flex;align-items:center;justify-content:center;"><i data-lucide="clipboard" style="width:13px;height:13px;stroke-width:2;"></i></div> Informações da Praça</h3>
+          <div class="fg2">
+            <div class="frow"><label for="f-praca">Praça</label><input id="f-praca" type="text" value="Juiz de Fora"/></div>
+            <div class="frow"><label for="f-gestor">Gestor</label><input id="f-gestor" type="text" placeholder="Nome do gestor"/></div>
+            <div class="frow"><label for="f-data">Data</label><input id="f-data" type="date" value="2026-08-06"/></div>
+            <div class="frow"><label for="f-colab">Colaborador</label><input id="f-colab" type="text" placeholder="Nome do colaborador"/></div>
+            <div class="frow"><label for="f-inicio">Hora Início do Turno</label><input id="f-inicio" type="time" value="06:00"/></div>
+            <div class="frow"><label for="f-fim">Hora Fim do Turno</label><input id="f-fim" type="time" value="14:00"/></div>
+          </div>
+        </div>
+        <div class="form-card">
+          <div class="frow"><label for="f-oc-tv">Ocorrências nos Telejornais e Transmissões ao Vivo</label><textarea id="f-oc-tv" placeholder="Descreva as ocorrências. Se nenhuma: - Sem ocorrência."></textarea></div>
+          <div class="frow"><label for="f-ac-tv">Ações Corretivas — Telejornais / Transmissões</label><textarea id="f-ac-tv" placeholder="Descreva as ações tomadas ou a tomar..."></textarea></div>
+          <div class="divider"></div>
+          <div class="frow"><label for="f-oc-prog">Ocorrências Durante a Programação</label><textarea id="f-oc-prog" placeholder="Descreva as ocorrências. Se nenhuma: - Sem ocorrência."></textarea></div>
+          <div class="frow"><label for="f-ac-prog">Ações Corretivas — Programação</label><textarea id="f-ac-prog" placeholder="Descreva as ações tomadas ou a tomar..."></textarea></div>
+          <div class="divider"></div>
+          <div class="frow"><label for="f-oc-rota">Ocorrências na Rota de Transmissão e Retransmissão</label><textarea id="f-oc-rota" placeholder="Descreva as ocorrências. Se nenhuma: - Sem ocorrência."></textarea></div>
+          <div class="frow"><label for="f-ac-rota">Ações Corretivas — Rota de Transmissão</label><textarea id="f-ac-rota" placeholder="Descreva as ações tomadas ou a tomar..."></textarea></div>
+        </div>
+        <div class="submit-bar">
+          <div class="dest-info-group">
+            <span class="dest-label">Envio automático para:</span>
+            <div class="dest-tags">
+              <span class="sb-tag">Relatório Power BI</span>
+              <span class="sb-tag">E-mail</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-left:auto;">
+            <button class="btn btn-ghost btn-sm">Salvar Rascunho</button>
+            <button class="btn btn-primary btn-sm">Enviar Relatório</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ASIDE CTRS — gerado pelo JS ── -->
+      <aside class="rel-aside" id="aside-ctrs" aria-label="Ocorrências">
+        <!-- preenchido por renderAside('aside-ctrs') -->
+      </aside>
+    </div>
+  </main>
+
+  <!-- ── PÁGINA: RECEBIMENTO DE EQUIPAMENTOS — UNIFICADO ── -->
+  <main class="page" id="page-recebimento" aria-label="Recebimento de Equipamentos">
+    <div class="rel-layout">
+      <div class="rel-center">
+
+        <!-- Banner Informativo -->
+        <div class="dest-bar">
+          <strong>Sincronização e Envio Automático:</strong>
+          <span class="dest-tag">Relatório Power BI</span>
+          <span class="dest-tag">E-mail Engenharia</span>
+          <span class="dest-tag">E-mail Patrimônio</span>
+          <span class="dest-tag">E-mail Recebimento</span>
+          <span class="dest-ref">Processo Recebimento 2.0</span>
+        </div>
+
+        <div class="form-card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;border-bottom:1px solid var(--border-lt);padding-bottom:10px;flex-wrap:wrap;gap:8px;">
+            <h3>
+              <div class="fcard-ico fci-b" style="display:flex;align-items:center;justify-content:center;">
+                <i data-lucide="package" style="width:13px;height:13px;stroke-width:2;"></i>
+              </div>
+              RECEBIMENTO EQUIPAMENTOS – MATERIAIS - SERVIÇOS
+            </h3>
+          </div>
+
+          <div class="fg3">
+            <div class="frow">
+              <label for="rec-remetente">Empresa Remetente <span style="color:var(--red)">*</span></label>
+              <input id="rec-remetente" type="text" placeholder="Nome da empresa remetente"/>
+            </div>
+            <div class="frow">
+              <label for="rec-nf">N.F / Invoice <span style="color:var(--red)">*</span></label>
+              <input id="rec-nf" type="text" placeholder="Número da Nota Fiscal / Invoice"/>
+            </div>
+            <div class="frow">
+              <label for="rec-valor">Valor (R$) <span style="color:var(--red)">*</span></label>
+              <input id="rec-valor" type="text" placeholder="Ex: R$ 0,00"/>
+            </div>
+          </div>
+
+          <div class="fg3">
+            <div class="frow">
+              <label for="rec-operacao">Nat. da Operação</label>
+              <input id="rec-operacao" type="text" placeholder="Ex: Venda de Mercadorias / Investimento"/>
+            </div>
+            <div class="frow">
+              <label for="rec-data">Data Recebimento <span style="color:var(--red)">*</span></label>
+              <input id="rec-data" type="date"/>
+            </div>
+            <div class="frow">
+              <label for="rec-volumes">Quant. de Volumes</label>
+              <input id="rec-volumes" type="text" placeholder="Ex: 1"/>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabela de Materiais -->
+        <div class="form-card">
+          <h3>
+            <div class="fcard-ico fci-g" style="display:flex;align-items:center;justify-content:center;">
+              <i data-lucide="list-checks" style="width:13px;height:13px;stroke-width:2;"></i>
+            </div>
+            Materiais e/ou Equipamentos
+          </h3>
+
+          <div class="rec-table-wrap">
+            <table class="rec-table" id="tb-rec">
+              <thead>
+                <tr>
+                  <th style="width:90px;">Quantidade</th>
+                  <th>Descrição</th>
+                  <th style="width:110px;">Plaqueta</th>
+                  <th style="width:110px;">Nº Série</th>
+                  <th style="width:140px;">Localidade</th>
+                  <th style="width:45px;text-align:center;">Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><input type="text" placeholder="Ex: 1"/></td>
+                  <td><input type="text" placeholder="Descrição do equipamento/material..."/></td>
+                  <td><input type="text" placeholder="Plaqueta..."/></td>
+                  <td><input type="text" placeholder="Nº Série..."/></td>
+                  <td><input type="text" placeholder="Ex: Juiz de Fora"/></td>
+                  <td style="text-align:center;">
+                    <button class="btn btn-ghost btn-xs" onclick="removerLinhaMaterial(this)" style="color:var(--red);padding:2px 5px;" title="Remover item"><i data-lucide="trash-2" style="width:13px;height:13px;"></i></button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <button class="btn btn-ghost btn-sm" onclick="adicionarLinhaMaterial('tb-rec')" style="margin-top:6px;">
+            <i data-lucide="plus" style="width:13px;height:13px;stroke-width:2.5;"></i>
+            Adicionar Novo Material
+          </button>
+        </div>
+
+        <!-- Informações de Fechamento -->
+        <div class="form-card">
+          <h3>
+            <div class="fcard-ico fci-y" style="display:flex;align-items:center;justify-content:center;">
+              <i data-lucide="file-check" style="width:13px;height:13px;stroke-width:2;"></i>
+            </div>
+            Dados de Recebimento e Faturamento
+          </h3>
+
+          <div class="fg2">
+            <div class="frow">
+              <label for="rec-recebedor">Nome Recebedor</label>
+              <input id="rec-recebedor" type="text" placeholder="Nome do recebedor"/>
+            </div>
+            <div class="frow">
+              <label for="rec-data-fat">Data Faturamento</label>
+              <input id="rec-data-fat" type="date"/>
+            </div>
+          </div>
+
+          <div class="fg2">
+            <div class="frow">
+              <label>Forma de Pagamento</label>
+              <div class="rec-payment-group">
+                <label class="rec-pay-option" onclick="selecionarFormaPagamento(this)"><input type="radio" name="rec-pagamento" value="Boleto anexo"/> Boleto anexo</label>
+                <label class="rec-pay-option" onclick="selecionarFormaPagamento(this)"><input type="radio" name="rec-pagamento" value="Depósito em conta"/> Depósito em conta</label>
+                <label class="rec-pay-option" onclick="selecionarFormaPagamento(this)"><input type="radio" name="rec-pagamento" value="Não identificado"/> Não identificado</label>
+              </div>
+            </div>
+            <div class="frow">
+              <label for="rec-ordem">Nº Ordem de Compra</label>
+              <input id="rec-ordem" type="text" placeholder="Número da Ordem de Compra"/>
+            </div>
+          </div>
+
+          <div class="frow" style="margin-top:8px;">
+            <label for="rec-obs">Observações / Registros (OBSERVAÇÕES:)</label>
+            <textarea id="rec-obs" placeholder="Escreva aqui observações gerais sobre o recebimento..."></textarea>
+          </div>
+        </div>
+
+        <!-- Alerta de Registros Fotográficos -->
+        <div class="rec-notice-box">
+          <i data-lucide="camera" style="width:18px;height:18px;stroke-width:2;flex-shrink:0;"></i>
+          <div>
+            <strong>OBS: ENVIAR REGISTROS FOTOGRÁFICOS DO BEM SENDO:</strong><br/>
+            FOTO DA PLAQUETA COLADA, FOTO DO MODELO, NÚMERO DE SÉRIE E FOTO FRONTAL DO BEM.
+          </div>
+        </div>
+
+        <!-- Anexo de Fotos e Vídeos -->
+        <div class="form-card">
+          <h3>
+            <div class="fcard-ico fci-p" style="display:flex;align-items:center;justify-content:center;">
+              <i data-lucide="camera" style="width:13px;height:13px;stroke-width:2;"></i>
+            </div>
+            Registros Fotográficos e Vídeos do Bem <span class="opt-badge" style="color:var(--blue);">Múltiplos Arquivos</span>
+          </h3>
+          <div class="upload-area" id="rec-upload-area" onclick="document.getElementById('rec-arquivos').click();" role="button" tabindex="0">
+            <input id="rec-arquivos" type="file" accept="image/*,video/*,.pdf,application/pdf" multiple onchange="handleFileSelect(this, 'rec-previews')"/>
+            <div class="u-ico"><i data-lucide="upload-cloud" style="width:24px;height:24px;color:var(--blue);stroke-width:1.5;"></i></div>
+            <p class="u-txt" style="font-weight:600;">Clique para anexar as fotos e documentos solicitados</p>
+            <p class="u-sub">Foto da Plaqueta Colada, Foto do Modelo, Número de Série, PDF e Vídeos (Múltiplos arquivos)</p>
+          </div>
+          <div id="rec-previews" class="upload-previews"></div>
+        </div>
+
+        <div class="submit-bar">
+          <div class="dest-info-group">
+            <span class="dest-label">Envio automático para:</span>
+            <div class="dest-tags">
+              <span class="sb-tag">Relatório Power BI</span>
+              <span class="sb-tag">Email Engenharia</span>
+              <span class="sb-tag">Email Patrimônio</span>
+              <span class="sb-tag">E-mail Recebimento</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-left:auto;">
+            <button class="btn btn-ghost btn-sm" onclick="salvarRascunhoRecebimento()">Salvar Rascunho</button>
+            <button class="btn btn-primary btn-sm" onclick="enviarRecebimento()">Enviar Recebimento</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── ASIDE RECEBIMENTO ── -->
+      <aside class="rel-aside" id="aside-recebimento" aria-label="Ocorrências Recentes">
+        <!-- preenchido por JS -->
+      </aside>
+    </div>
+  </main>
+
+  <!-- ── PÁGINA: COMPRAS / VENDAS ── -->
+  <main class="page" id="page-compras-vendas" aria-label="Solicitação de Compras">
+    <div class="scroll-area">
+      <div class="form-card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <div class="fcard-ico fci-b" style="display:flex;align-items:center;justify-content:center;">
+            <i data-lucide="shopping-bag" style="width:14px;height:14px;stroke-width:2;"></i>
+          </div>
+          <h3 style="margin:0;font-size:15px;font-weight:700;">Solicitação de Compra / Material</h3>
+        </div>
+        <p class="form-card-desc">Preencha a solicitação de compra para encaminhamento e aprovação.</p>
+
+        <!-- CABEÇALHO DA REQUISIÇÃO -->
+        <div class="fg3" style="margin-top:14px;">
+          <div class="frow">
+            <label for="req-praca">Praça / Localidade <span style="color:var(--red)">*</span></label>
+            <select id="req-praca">
+              <option value="Juiz de Fora">Juiz de Fora</option>
+              <option value="Uberlândia">Uberlândia</option>
+              <option value="Uberaba">Uberaba</option>
+              <option value="Divinópolis">Divinópolis</option>
+              <option value="Araxá">Araxá</option>
+            </select>
+          </div>
+          <div class="frow">
+            <label for="req-carater">Caráter de Urgência <span style="color:var(--red)">*</span></label>
+            <select id="req-carater">
+              <option value="Normal">Normal</option>
+              <option value="Urgente">Urgente</option>
+              <option value="Excepcional">Excepcional</option>
+            </select>
+          </div>
+          <div class="frow">
+            <label for="req-solicitante">Solicitante</label>
+            <td><input type="text" class="item-desc" placeholder="" /></td>
+          </div>
+        </div>
+
+        <div class="frow" style="margin-top:10px;">
+          <label for="req-motivo">Justificativa / Motivo da Solicitação <span style="color:var(--red)">*</span></label>
+          <textarea id="req-motivo" placeholder="Descreva o motivo da compra ou a necessidade de substituição..." style="min-height:70px;"></textarea>
+        </div>
+
+        <!-- TABELA DINÂMICA DE ITENS -->
+        <div style="margin-top:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <label style="font-size:12.5px;font-weight:700;color:var(--txt);">Itens da Solicitação <span style="color:var(--red)">*</span></label>
+            <button type="button" class="btn btn-ghost btn-xs" onclick="adicionarLinhaItemCompra()" style="color:var(--blue);display:flex;align-items:center;gap:4px;">
+              <i data-lucide="plus" style="width:13px;height:13px;stroke-width:2.5;"></i> Adicionar Item
+            </button>
+          </div>
+
+          <div style="overflow-x:auto;">
+            <table class="rec-table" style="width:100%;min-width:650px;">
+              <thead>
+                <tr>
+                  <th style="width:65px;">Quant.</th>
+                  <th>Descrição do Item</th>
+                  <th style="width:130px;">Cód. Fabricante</th>
+                  <th style="width:130px;">Fabricante / Marca</th>
+                  <th>Link do Produto</th>
+                  <th style="width:45px;text-align:center;">Rem.</th>
+                </tr>
+              </thead>
+              <tbody id="req-itens-tbody">
+                <tr>
+                  <td><input type="number" class="item-quant" min="1" value="1" style="text-align:center;" /></td>
+                  <td><input type="text" class="item-desc" placeholder="Ex: Descrição do material..." /></td>
+                  <td><input type="text" class="item-cod" placeholder="Código ex: P4-120" /></td>
+                  <td><input type="text" class="item-fab" placeholder="Marca ou fabricante" /></td>
+                  <td><input type="url" class="item-link" placeholder="https://link-do-produto.com..." /></td>
+                  <td style="text-align:center;">
+                    <button type="button" class="btn btn-ghost btn-xs" onclick="removerLinhaItemCompra(this)" title="Remover item" style="color:var(--red);padding:2px 6px;">✕</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- DESTINO E CENTRO DE CUSTO -->
+        <div class="fg3" style="margin-top:20px;">
+          <div class="frow">
+            <label for="req-destino">Uso a que se destina <span style="color:var(--red)">*</span></label>
+            <input type="text" id="req-destino" placeholder="Ex: Substituição ou aplicação no equipamento..." />
+          </div>
+          <div class="frow">
+            <label for="req-centrocusto">Centro de Custo <span style="color:var(--red)">*</span></label>
+            <select id="req-centrocusto">
+              <option value="Manutenção Técnica - JF">Manutenção Técnica - JF</option>
+              <option value="Engenharia de Operações">Engenharia de Operações</option>
+              <option value="TI & Infraestrutura">TI & Infraestrutura</option>
+              <option value="Jornalismo">Jornalismo</option>
+              <option value="Produção">Produção</option>
+            </select>
+          </div>
+          <div class="frow">
+            <label for="req-projeto">Projeto</label>
+            <input type="text" id="req-projeto" value="Padrão" placeholder="Nome do projeto" />
+          </div>
+        </div>
+
+        <!-- ANEXO DE ORÇAMENTO / PROPOSTA EM PDF -->
+        <div class="frow" style="margin-top:14px;">
+          <label>Anexo de Proposta Comercial / Orçamento <span class="opt-badge">PDF, Fotos ou Documentos</span></label>
+          <div class="upload-area" id="req-upload-area" role="button" tabindex="0">
+            <input id="req-arquivos" type="file" accept="image/*,video/*,.pdf,application/pdf" multiple onchange="handleFileSelect(this, 'req-previews')" />
+            <div class="u-ico"><i data-lucide="paperclip" style="width:22px;height:22px;color:var(--muted);stroke-width:1.5;"></i></div>
+            <p class="u-txt">Anexar proposta em PDF, orçamento ou documento comercial</p>
+            <p class="u-sub">PDF, PNG, JPG, DOCX</p>
+          </div>
+          <div id="req-previews" class="upload-previews"></div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:14px;border-top:1px solid var(--border-lt);">
+          <button type="button" class="btn btn-ghost" onclick="salvarRascunhoCompra()">Salvar Rascunho</button>
+          <button type="button" class="btn btn-primary" onclick="enviarRequisicaoCompra()">Enviar Requisição de Compra</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── PÁGINA: ORÇAMENTO (ANO ATUAL + 1) ── -->
+  <main class="page" id="page-orcamento" aria-label="Planejamento Orçamentário">
+    <div class="scroll-area">
+      <!-- HEADER DO ORÇAMENTO COM ANO DINÂMICO -->
+      <div class="dash-card" style="padding:16px 20px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;background:#FFFFFF;border:1px solid var(--border);">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#FF9500;box-shadow:0 0 8px rgba(255,149,0,0.5);"></span>
+            <h2 style="font-size:16px;font-weight:800;letter-spacing:-0.01em;margin:0;color:var(--txt);text-transform:uppercase;">
+              Planejamento Orçamentário — <span class="orc-ano-display" style="color:var(--yellow);">2027</span>
+            </h2>
+          </div>
+          <div style="font-size:12px;font-weight:500;color:var(--muted);margin-top:2px;">
+            Plano Anual de Investimentos e Custeio (CAPEX / OPEX) · TV Integração
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <div style="background:var(--yellow-lt);color:#B45309;font-size:12px;padding:5px 12px;font-weight:700;border-radius:20px;border:1px solid var(--yellow-border);">
+            Ciclo Fiscal: <span class="orc-ano-display">2027</span>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="abrirModalAdicionarItemOrcamento()" style="display:flex;align-items:center;gap:6px;padding:7px 14px;font-weight:600;">
+            <i data-lucide="plus-circle" style="width:15px;height:15px;stroke-width:2.5;"></i>
+            + Propor Linha Orçamentária
+          </button>
+        </div>
+      </div>
+
+      <!-- PAINEL DE KPIS ORÇAMENTÁRIOS -->
+      <div class="stats-row-3" style="margin-bottom:18px;">
+        <div class="dash-card" style="display:flex;align-items:center;gap:14px;flex:1;">
+          <div style="width:42px;height:42px;border-radius:10px;background:#FEF3C7;display:flex;align-items:center;justify-content:center;color:#D97706;flex-shrink:0;">
+            <i data-lucide="wallet" style="width:22px;height:22px;stroke-width:2.2;"></i>
+          </div>
+          <div>
+            <div id="orc-kpi-total" style="color:#B45309;font-size:22px;font-weight:800;line-height:1.1;">R$ 485.000,00</div>
+            <div style="font-size:12px;font-weight:600;color:#64748B;margin-top:2px;">Total Previsto <span class="orc-ano-display">2027</span></div>
+          </div>
+        </div>
+
+        <div class="dash-card" style="display:flex;align-items:center;gap:14px;flex:1;">
+          <div style="width:42px;height:42px;border-radius:10px;background:#E8F2FF;display:flex;align-items:center;justify-content:center;color:#0071E3;flex-shrink:0;">
+            <i data-lucide="cpu" style="width:22px;height:22px;stroke-width:2.2;"></i>
+          </div>
+          <div>
+            <div id="orc-kpi-capex" style="color:#0071E3;font-size:22px;font-weight:800;line-height:1.1;">R$ 360.000,00</div>
+            <div style="font-size:12px;font-weight:600;color:#64748B;margin-top:2px;">CAPEX (Equipamentos & Projetos)</div>
+          </div>
+        </div>
+
+        <div class="dash-card" style="display:flex;align-items:center;gap:14px;flex:1;">
+          <div style="width:42px;height:42px;border-radius:10px;background:#E6F7F5;display:flex;align-items:center;justify-content:center;color:#0D9488;flex-shrink:0;">
+            <i data-lucide="wrench" style="width:22px;height:22px;stroke-width:2.2;"></i>
+          </div>
+          <div>
+            <div id="orc-kpi-opex" style="color:#0F766E;font-size:22px;font-weight:800;line-height:1.1;">R$ 125.000,00</div>
+            <div style="font-size:12px;font-weight:600;color:#64748B;margin-top:2px;">OPEX (Manutenção & Operação)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TABELA E GESTÃO DO ORÇAMENTO -->
+      <div class="dash-card" style="padding:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+          <div>
+            <h3 style="font-size:14px;font-weight:800;color:#0F172A;display:flex;align-items:center;gap:7px;margin:0;">
+              <i data-lucide="table" style="width:18px;height:18px;color:#0D9488;stroke-width:2;"></i>
+              Itens do Plano de Orçamento <span class="orc-ano-display">2027</span>
+            </h3>
+            <p style="font-size:12px;color:#64748B;margin:2px 0 0 0;">Previsão de aquisições, modernizações tecnológicas e custeio anual</p>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="exportarOrcamentoExcel()" style="display:flex;align-items:center;gap:6px;">
+              <i data-lucide="download" style="width:14px;height:14px;"></i> Exportar Relatório
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="salvarOrcamento()" style="display:flex;align-items:center;gap:6px;">
+              <i data-lucide="save" style="width:14px;height:14px;"></i> Salvar Plano
+            </button>
+          </div>
+        </div>
+
+        <div style="overflow-x:auto;">
+          <table class="rec-table" style="width:100%;min-width:760px;">
+            <thead>
+              <tr>
+                <th style="width:50px;text-align:center;">#</th>
+                <th>Descrição do Item / Projeto</th>
+                <th style="width:140px;">Classificação</th>
+                <th style="width:140px;">Praça / Local</th>
+                <th style="width:110px;">Prioridade</th>
+                <th style="width:140px;text-align:right;">Valor Previsto (R$)</th>
+                <th style="width:120px;text-align:center;">Status</th>
+                <th style="width:50px;text-align:center;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="orc-itens-tbody">
+              <!-- Renderizado via script.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── PÁGINA: DASHBOARD OCORRÊNCIAS (RESOLUÇÃO & POWER BI) ── -->
+  <main class="page" id="page-resolvidas" aria-label="Dashboard Ocorrências — Resolução e Desempenho">
+    <div class="scroll-area">
+      <!-- HEADER DO DASHBOARD -->
+      <div class="dash-card" style="padding:16px 20px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;background:#FFFFFF;border:1px solid var(--border);">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#34C759;box-shadow:0 0 8px rgba(52,199,89,0.5);"></span>
+            <h2 style="font-size:16px;font-weight:800;letter-spacing:-0.01em;margin:0;color:var(--txt);text-transform:uppercase;">
+              Dashboard Ocorrências — <span style="color:var(--blue);">Resolução & Desempenho</span>
+            </h2>
+          </div>
+          <div style="font-size:12px;font-weight:500;color:var(--muted);margin-top:2px;">Painel de Métricas & Indicadores em Tempo Real · Juiz de Fora</div>
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <div id="pct-resolucao-badge" style="background:var(--green-lt);color:var(--green-dk);font-size:12px;padding:5px 12px;font-weight:700;border-radius:20px;border:1px solid var(--green-border);">
+            Taxa de Resolução: 0%
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="abrirPopup('popup-nova-oc')" style="display:flex;align-items:center;gap:6px;padding:7px 14px;font-weight:600;">
+            <i data-lucide="plus-circle" style="width:15px;height:15px;stroke-width:2.5;"></i>
+            + Nova Ocorrência
+          </button>
+        </div>
+      </div>
+
+      <!-- PAINEL DE ESTATÍSTICAS KPI -->
+      <div class="stats-row-3" style="margin-bottom:18px;">
+        <div class="dash-card" style="display:flex;align-items:center;gap:14px;flex:1;">
+          <div style="width:42px;height:42px;border-radius:10px;background:#E6F7F5;display:flex;align-items:center;justify-content:center;color:#0D9488;flex-shrink:0;">
+            <i data-lucide="check-circle-2" style="width:22px;height:22px;stroke-width:2.2;"></i>
+          </div>
+          <div>
+            <div class="stat-num sn-resolvidas-g" style="color:#059669;font-size:24px;font-weight:800;line-height:1.1;">0</div>
+            <div style="font-size:12px;font-weight:600;color:#64748B;margin-top:2px;">Ocorrências Resolvidas</div>
+          </div>
+        </div>
+
+        <div class="dash-card" style="display:flex;align-items:center;gap:14px;flex:1;">
+          <div style="width:42px;height:42px;border-radius:10px;background:#E8F2FF;display:flex;align-items:center;justify-content:center;color:#0071E3;flex-shrink:0;">
+            <i data-lucide="clock" style="width:22px;height:22px;stroke-width:2.2;"></i>
+          </div>
+          <div>
+            <div class="stat-num sn-resolvidas-b" style="color:#0071E3;font-size:24px;font-weight:800;line-height:1.1;">0</div>
+            <div style="font-size:12px;font-weight:600;color:#64748B;margin-top:2px;">Abertas (No Prazo)</div>
+          </div>
+        </div>
+
+        <div class="dash-card" style="display:flex;align-items:center;gap:14px;flex:1;">
+          <div style="width:42px;height:42px;border-radius:10px;background:#FEF2F2;display:flex;align-items:center;justify-content:center;color:#EF4444;flex-shrink:0;">
+            <i data-lucide="alert-triangle" style="width:22px;height:22px;stroke-width:2.2;"></i>
+          </div>
+          <div>
+            <div class="stat-num sn-resolvidas-r" style="color:#DC2626;font-size:24px;font-weight:800;line-height:1.1;">0</div>
+            <div style="font-size:12px;font-weight:600;color:#64748B;margin-top:2px;">Não Resolvidas (Expiradas)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MÉTRICAS DE RESOLUÇÃO ESTILO POWER BI -->
+      <div class="dash-card" style="padding:20px;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+          <div>
+            <h3 style="font-size:14px;font-weight:800;color:#0F172A;display:flex;align-items:center;gap:7px;margin:0;">
+              <i data-lucide="pie-chart" style="width:18px;height:18px;color:#0071E3;stroke-width:2;"></i>
+              Distribuição Geral de Ocorrências
+            </h3>
+            <p style="font-size:12px;color:#64748B;margin:2px 0 0 0;">Proporção entre resoluções no prazo, ocorrências ativas e pendências expiradas</p>
+          </div>
+          <span id="txt-total-ocorrencias" style="font-size:12px;font-weight:600;color:#64748B;background:#F1F5F9;padding:4px 12px;border-radius:12px;">0 ocorrências</span>
+        </div>
+
+        <!-- GRÁFICO DE DONUT E LEGENDA -->
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:var(--r-lg);padding:20px 24px;margin-bottom:20px;">
+          <div style="display:flex;align-items:center;justify-content:center;gap:36px;flex-wrap:wrap;">
+            <!-- CÍRCULO DO GRÁFICO DE DONUT -->
+            <div id="pie-chart-circle" style="width:160px;height:160px;border-radius:50%;flex-shrink:0;box-shadow:0 4px 14px rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:center;position:relative;background:#E2E8F0;transition:background .3s;">
+              <div class="dash-pie-donut" style="width:90px;height:90px;">
+                <div style="font-size:20px;font-weight:800;color:#0F172A;line-height:1;" id="pie-resolvidas-tot">0</div>
+                <div style="font-size:9.5px;color:#64748B;font-weight:700;margin-top:2px;">TOTAL</div>
+              </div>
+            </div>
+
+            <!-- LEGENDA E VALORES -->
+            <div style="display:flex;flex-direction:column;gap:10px;flex:1;min-width:240px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#ffffff;border:1px solid #E2E8F0;border-radius:var(--r-md);box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="width:10px;height:10px;border-radius:50%;background:#10B981;flex-shrink:0;"></span>
+                  <span style="font-size:12.5px;font-weight:600;color:#334155;">Ocorrências Resolvidas</span>
+                </div>
+                <span id="lbl-pct-g" style="font-size:13px;font-weight:700;color:#059669;">0%</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#ffffff;border:1px solid #E2E8F0;border-radius:var(--r-md);box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="width:10px;height:10px;border-radius:50%;background:#0071E3;flex-shrink:0;"></span>
+                  <span style="font-size:12.5px;font-weight:600;color:#334155;">Abertas (No Prazo)</span>
+                </div>
+                <span id="lbl-pct-b" style="font-size:13px;font-weight:700;color:#0071E3;">0%</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#ffffff;border:1px solid #E2E8F0;border-radius:var(--r-md);box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="width:10px;height:10px;border-radius:50%;background:#EF4444;flex-shrink:0;"></span>
+                  <span style="font-size:12.5px;font-weight:600;color:#334155;">Não Resolvidas (Expiradas)</span>
+                </div>
+                <span id="lbl-pct-r" style="font-size:13px;font-weight:700;color:#DC2626;">0%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FILTROS DA LISTA DE RESOLVIDAS -->
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+          <span style="font-size:12px;font-weight:700;color:#475569;">Visualizar:</span>
+          <button class="pill on" id="pill-res-todas" onclick="filtrarResolvidas('todas', this)">Todas</button>
+          <button class="pill" id="pill-res-concluidas" onclick="filtrarResolvidas('concluidas', this)">🟢 Apenas Resolvidas</button>
+          <button class="pill" id="pill-res-vencidas" onclick="filtrarResolvidas('vencidas', this)">🔴 Não Resolvidas / Vencidas</button>
+        </div>
+
+        <!-- CONTAINER DA LISTA -->
+        <div id="resolvidas-list" style="display:flex;flex-direction:column;gap:10px;">
+          <!-- renderizado via JS -->
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── PÁGINA: HISTÓRICO DE REGISTROS ── -->
+  <main class="page" id="page-historico" aria-label="Histórico de Registros">
+    <div class="rel-layout">
+      <div class="rel-center">
+
+        <!-- Card de Busca e Filtros -->
+        <div class="form-card" style="margin-bottom:12px;">
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;align-items:center;gap:8px;position:relative;">
+              <i data-lucide="search" style="width:16px;height:16px;color:var(--muted);position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;"></i>
+              <input id="hist-search" type="text" placeholder="Buscar por equipamento, palavra-chave, autor, nota fiscal..." oninput="filtrarHistorico()" style="padding-left:32px;width:100%;font-size:13px;height:36px;"/>
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+              <div class="pills" role="tablist" id="hist-pills">
+                <button class="pill on" data-cat="todos" onclick="filtrarCategoriaHistorico('todos', this)">Todos (<span id="cnt-hist-todos">0</span>)</button>
+                <button class="pill" data-cat="ocorrencia" onclick="filtrarCategoriaHistorico('ocorrencia', this)">Ocorrências (<span id="cnt-hist-oc">0</span>)</button>
+                <button class="pill" data-cat="relatorio" onclick="filtrarCategoriaHistorico('relatorio', this)">Relatórios (<span id="cnt-hist-rel">0</span>)</button>
+                <button class="pill" data-cat="recebimento" onclick="filtrarCategoriaHistorico('recebimento', this)">Recebimentos (<span id="cnt-hist-rec">0</span>)</button>
+                <button class="pill" data-cat="meus" onclick="filtrarCategoriaHistorico('meus', this)">Meus Registros (<span id="cnt-hist-meus">0</span>)</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lista do Histórico -->
+        <div id="hist-list" style="display:flex;flex-direction:column;gap:10px;">
+          <!-- preenchido por JS -->
+        </div>
+
+      </div>
+
+      <!-- ── ASIDE HISTÓRICO: REGISTROS DO MESMO EQUIPAMENTO ── -->
+      <aside class="rel-aside" id="aside-historico-relacionados" aria-label="Registros Relacionados">
+        <!-- preenchido por JS -->
+      </aside>
+    </div>
+  </main>
+
+  <!-- ── PÁGINA: CONFIGURAÇÕES ── -->
+  <main class="page" id="page-config" aria-label="Configurações">
+    <div class="scroll-area">
+
+      <div class="form-card">
+        <h3><div class="fcard-ico fci-b" style="display:flex;align-items:center;justify-content:center;"><i data-lucide="image" style="width:13px;height:13px;stroke-width:2;"></i></div> Foto de Perfil</h3>
+        <div class="cfg-photo-row">
+          <div class="cfg-avatar" id="cfg-avatar">TM</div>
+          <div class="cfg-photo-actions">
+            <label class="btn btn-ghost btn-sm" for="cfg-photo-input" style="cursor:pointer;">
+              <i data-lucide="upload" style="width:13px;height:13px;stroke-width:2;"></i>
+              Alterar foto
+            </label>
+            <input type="file" id="cfg-photo-input" accept="image/*" hidden onchange="alterarFotoPerfil(this)"/>
+            <button class="btn btn-ghost btn-sm" onclick="removerFotoPerfil()">Remover</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <h3><div class="fcard-ico fci-b" style="display:flex;align-items:center;justify-content:center;"><i data-lucide="user" style="width:13px;height:13px;stroke-width:2;"></i></div> Informações Pessoais</h3>
+        <div class="fg2">
+          <div class="frow"><label for="cfg-nome">Nome do Operador</label><input id="cfg-nome" type="text" value="Operador" oninput="atualizarNomeUsuario(this.value)"/></div>
+          <div class="frow"><label for="cfg-email">E-mail</label><input id="cfg-email" type="email" value="teste@teste.com" disabled style="background:#F1F5F9;color:var(--muted);cursor:not-allowed;"/></div>
+          <div class="frow"><label for="cfg-cargo">Cargo</label><input id="cfg-cargo" type="text" value="Técnico de Estúdio" disabled/></div>
+          <div class="frow"><label for="cfg-praca">Praça</label><input id="cfg-praca" type="text" value="Juiz de Fora" disabled/></div>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <h3><div class="fcard-ico fci-y" style="display:flex;align-items:center;justify-content:center;"><i data-lucide="bell" style="width:13px;height:13px;stroke-width:2;"></i></div> Notificações</h3>
+        <div class="cfg-toggle-row">
+          <div>
+            <div class="cfg-toggle-title">Mutar todas as notificações</div>
+            <div class="cfg-toggle-sub">Desativa todos os alertas do sistema, incluindo o sino no topo</div>
+          </div>
+          <label class="toggle"><input type="checkbox" id="cfg-mute-all" onchange="mutarNotificacoes(this.checked)"/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="divider"></div>
+        <div class="cfg-toggle-row">
+          <div>
+            <div class="cfg-toggle-title">Novas ocorrências</div>
+            <div class="cfg-toggle-sub">Avisar quando uma nova ocorrência for aberta</div>
+          </div>
+          <label class="toggle"><input type="checkbox" checked/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="cfg-toggle-row">
+          <div>
+            <div class="cfg-toggle-title">Ocorrências atrasadas</div>
+            <div class="cfg-toggle-sub">Avisar quando uma ocorrência passar do prazo</div>
+          </div>
+          <label class="toggle"><input type="checkbox" checked/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="cfg-toggle-row">
+          <div>
+            <div class="cfg-toggle-title">Resumo por e-mail</div>
+            <div class="cfg-toggle-sub">Receber um resumo diário do turno por e-mail</div>
+          </div>
+          <label class="toggle"><input type="checkbox"/><span class="toggle-slider"></span></label>
+        </div>
+      </div>
+
+
+      <div class="form-card">
+        <h3><div class="fcard-ico fci-p" style="display:flex;align-items:center;justify-content:center;"><i data-lucide="sliders-horizontal" style="width:13px;height:13px;stroke-width:2;"></i></div> Preferências</h3>
+        <div class="fg2">
+          <div class="frow"><label for="cfg-tema">Tema</label>
+            <select id="cfg-tema">
+              <option>Claro</option>
+              <option>Escuro (em breve)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="submit-bar" style="justify-content:flex-end;">
+        <button class="btn btn-primary btn-sm" onclick="salvarConfiguracoes()">Salvar Alterações</button>
+      </div>
+
+    </div>
+  </main>
+
+</div><!-- /main -->
+
+<script src="script.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  });
+
+  /* ── Pills de status do popup Resolver ── */
+  function selecionarStatus(valor) {
+    document.getElementById('resolver-status').value = valor;
+    var mapa = { 'Resolvido':'pill-ok', 'Parcialmente resolvido':'pill-parcial', 'Encaminhado':'pill-enc' };
+    var cls  = { 'Resolvido':'selected-ok', 'Parcialmente resolvido':'selected-warn', 'Encaminhado':'selected-fwd' };
+    Object.keys(mapa).forEach(function(k) {
+      var el = document.getElementById(mapa[k]);
+      if (!el) return;
+      el.classList.remove('selected-ok','selected-warn','selected-fwd');
+      if (k === valor) el.classList.add(cls[k]);
+    });
+  }
+  window.selecionarStatus = selecionarStatus;
+</script>
+</body>
+</html>
