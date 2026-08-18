@@ -120,6 +120,7 @@ document.addEventListener('DOMContentLoaded', function () {
     pushRemote: function(table, data) {
       if (!this.url || !this.key) return;
       if (!Array.isArray(data) || data.length === 0) return;
+      var self = this;
       try {
         var endpoint = this.url.replace(/\/$/, '') + '/rest/v1/' + table;
         fetch(endpoint, {
@@ -131,6 +132,8 @@ document.addEventListener('DOMContentLoaded', function () {
             'Prefer': 'resolution=merge-duplicates'
           },
           body: JSON.stringify(data)
+        }).then(function() {
+          self.syncRemote();
         }).catch(function(err) {
           console.warn('[DBService Cloud] Falha ao enviar dados para o Supabase:', err);
         });
@@ -143,43 +146,59 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!this.url || !this.key) return;
       var self = this;
       try {
-        // 1. Sincroniza Ocorrências
-        fetch(self.url.replace(/\/$/, '') + '/rest/v1/ocorrencias?select=*', {
+        // 1. Sincroniza Ocorrências em tempo real (cache-busting)
+        var urlOc = self.url.replace(/\/$/, '') + '/rest/v1/ocorrencias?select=*&_t=' + Date.now();
+        fetch(urlOc, {
           headers: {
             'apikey': self.key,
-            'Authorization': 'Bearer ' + self.key
-          }
+            'Authorization': 'Bearer ' + self.key,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          },
+          cache: 'no-store'
         })
         .then(function(res) { return res.ok ? res.json() : null; })
         .then(function(remoteData) {
           if (Array.isArray(remoteData)) {
             var clean = remoteData.map(sanitizeOcorrencia).filter(Boolean);
-            ocorrencias = clean;
-            try {
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(ocorrencias));
-            } catch(e) {}
-            if (typeof renderAll === 'function') renderAll();
+            var prevJson = JSON.stringify(ocorrencias);
+            var nextJson = JSON.stringify(clean);
+            if (prevJson !== nextJson) {
+              ocorrencias = clean;
+              try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(ocorrencias));
+              } catch(e) {}
+              if (typeof renderAll === 'function') renderAll();
+            }
           }
         })
         .catch(function(err) {
           console.warn('[DBService Cloud Sync] Offline ou conectando ao Supabase...', err);
         });
 
-        // 2. Sincroniza Histórico
-        fetch(self.url.replace(/\/$/, '') + '/rest/v1/historico?select=*', {
+        // 2. Sincroniza Histórico em tempo real (cache-busting)
+        var urlHist = self.url.replace(/\/$/, '') + '/rest/v1/historico?select=*&_t=' + Date.now();
+        fetch(urlHist, {
           headers: {
             'apikey': self.key,
-            'Authorization': 'Bearer ' + self.key
-          }
+            'Authorization': 'Bearer ' + self.key,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          },
+          cache: 'no-store'
         })
         .then(function(res) { return res.ok ? res.json() : null; })
         .then(function(remoteHist) {
           if (Array.isArray(remoteHist)) {
-            historicoSeedData = remoteHist;
-            try {
-              localStorage.setItem(HISTORICO_STORAGE_KEY, JSON.stringify(historicoSeedData));
-            } catch(e) {}
-            if (typeof renderHistorico === 'function') renderHistorico();
+            var prevHistJson = JSON.stringify(historicoSeedData);
+            var nextHistJson = JSON.stringify(remoteHist);
+            if (prevHistJson !== nextHistJson) {
+              historicoSeedData = remoteHist;
+              try {
+                localStorage.setItem(HISTORICO_STORAGE_KEY, JSON.stringify(historicoSeedData));
+              } catch(e) {}
+              if (typeof renderHistorico === 'function') renderHistorico();
+            }
           }
         })
         .catch(function(err) {
@@ -2630,12 +2649,12 @@ document.addEventListener('DOMContentLoaded', function () {
   ═══════════════════════════════════════════ */
   DBService.syncRemote();
 
-  // Sincronização periódica em tempo real (a cada 5 segundos) e ao focar na janela
+  // Sincronização ultra-rápida em tempo real (a cada 2.5 segundos) e imediata ao focar na janela
   setInterval(function() {
     if (typeof DBService !== 'undefined' && DBService && typeof DBService.syncRemote === 'function') {
       DBService.syncRemote();
     }
-  }, 5000);
+  }, 2500);
 
   window.addEventListener('focus', function() {
     if (typeof DBService !== 'undefined' && DBService && typeof DBService.syncRemote === 'function') {
