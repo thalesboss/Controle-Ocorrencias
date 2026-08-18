@@ -37,6 +37,7 @@ window.fecharPopup   = fecharPopup;
 window.iniciarSessao = iniciarSessao;
 
 document.addEventListener('DOMContentLoaded', function () {
+  console.log('✅ [Sistema TV] Versão 2.2 Carregada — Conectado ao Supabase');
 
   /* ═══════════════════════════════════════════
      BANCO DE DADOS & SERVIÇO DE ARMAZENAMENTO (DB ADAPTER SERVICE)
